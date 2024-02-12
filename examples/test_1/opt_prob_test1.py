@@ -1,3 +1,5 @@
+import numpy as np
+
 try:
     from moobench.optbase import *
 except ImportError:
@@ -56,8 +58,8 @@ class Aircraft_OptProb(OptimizationProblem):
             ifc+=1
             fca_conn = CallbackPropertyGetSetConnector(fc,FlightCondition.alpha_deg)
             self.add_design_variable(DesignVariable('xfc_{}'.format(ifc), fca_conn, 0.0,5.0))
-            fcL_conn = CallbackPropertyGetSetConnector(fc, FlightCondition.L)
-            self.add_constraint(DesignConstraint('gWLfc_{}'.format(ifc), fcL_conn, am.aircraft.W_TO, ConstrType.EQ))
+            fcN_conn = CallbackPropertyGetSetConnector(fc, FlightCondition.N)
+            self.add_constraint(DesignConstraint('gWLfc_{}'.format(ifc), fcN_conn, am.aircraft.W_TO, ConstrType.EQ))
         iws = 0
         for seg in am.aircraft.wing.segments:
             iws+=1
@@ -66,7 +68,7 @@ class Aircraft_OptProb(OptimizationProblem):
             ws_c0_con = CallbackPropertyGetSetConnector(seg, Segment.c0)
             self.add_design_variable(DesignVariable('xc0_ws_{}'.format(iws), ws_c0_con, .01, 7.0))
             ws_ct_con = CallbackPropertyGetSetConnector(seg, Segment.ct)
-            self.add_design_variable(DesignVariable('xct_ws_{}'.format(iws), ws_ct_con, 0.5, 6.0))
+            self.add_design_variable(DesignVariable('xct_ws_{}'.format(iws), ws_ct_con, 0.01, 6.0))
             ws_L0_con = CallbackPropertyGetSetConnector(seg, Segment.L0)
             self.add_design_variable(DesignVariable('xL0_ws_{}'.format(iws), ws_L0_con, 5/57.3, 60/57.3))
             ws_alpha_pos_con = CallbackPropertyGetSetConnector(seg, Segment.alpha_pos)

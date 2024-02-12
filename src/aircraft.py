@@ -1,12 +1,13 @@
 from typing import List
 import numpy as np
-from waissll import get_waissll_points_trapezoidal, calc_CLa_CDa2
+from src.waissll import get_waissll_points_trapezoidal, calc_CLa_CDa2
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 
 def calculate_air_density_ICAO(h_m):
     # ICAO standardne vrijednosti na razini mora
+
     p0 = 101325  # Tlak na razini mora, Pa
     T0 = 288.15  # Temperatura na razini mora, K
     g = 9.80665  # Gravitacijska konstanta, m/s²
@@ -304,6 +305,7 @@ class FlightCondition:
         self._wf = wf #weight factor of flight condition
         self._L = 0.0
         self._D = 0.0
+        self._N = 0.0
     @property
     def wf(self):
         return self._wf
@@ -325,18 +327,22 @@ class FlightCondition:
         rho_h = calculate_air_density_ICAO(h_m)
         return rho_h
 
-    def calc_aero_forces(self,Sref,CLa,CL0,CDa2,CD0):
+    def calc_aero_forces(self,Sref,CLa,CL0,CDa2,CD0,phei):
         dp_S = self.dyn_press*Sref
         C_L = CL0 + CLa*self.alpha_rad
         C_D = CD0 + CDa2*self.alpha_rad**2.0
         self._L = dp_S*C_L
         self._D = dp_S*C_D
+        self._N = self._L * np.cos(self.alpha_rad) * np.cos(phei)
     @property
     def D(self):
         return self._D
     @property
     def L(self):
         return self._L
+    @property
+    def N(self):
+        return self._N
 
     def get_info(self):
         msg = 'FC: Vcr = {0:.2f} m/s; h = {1:.0f} m; alpha = {2:.2f} °; '.format(self._V_cr,self._h_m, self._alpha_deg)
@@ -380,10 +386,11 @@ class Aircraft:
     def run_aero(self):
         CLa,CDa2 = self.wing.calculate_CLa_CDa2()
         Sref = self.wing.Sref
+        phei = self.wing.segments[0].phei
         CL0= 0.1
         CD0 = 0.02
         for fc in self._flight_conditions:
-            fc.calc_aero_forces(Sref,CLa,CL0,CDa2,CD0)
+            fc.calc_aero_forces(Sref,CLa,CL0,CDa2,CD0,phei)
 
     def get_info(self):
         msg = 'W_TO = {0:.2f}'.format(self._W_TO)+'\n'
@@ -449,9 +456,9 @@ def create_one_segment_wing():
     alpha_pos = 2 / 57.3  # postavni kut krila
     i_r = 0 / 57.3  # kut uvijanja u korjenu krila
     i_t = 6 / 57.3  # kut uvijanja u vrhu krila
-    phei = 10 / 57.3  # dihedral
     a0_r = 6.9586 # NACA 2415, korijen krila
     a0_t = 6.6649 # NACA 2408, vrh krila
+    phei = 10 / 57.3  # dihedral
     seg = Segment(b,c_r,c_t,L0,alpha_pos,i_r,i_t,phei,a0_r,a0_t)
     wing.add_segment(seg)
     # Add Flight conditions
