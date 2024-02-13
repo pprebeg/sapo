@@ -3,7 +3,14 @@ import numpy as np
 from src.waissll import get_waissll_points_trapezoidal, calc_CLa_CDa2
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from enum import Enum
 
+class Symmetry(Enum):
+    NO_SYMMETRY = 'none'
+    INHERITS = 'inherits'
+    X_Z_PLANE = 'x-z-plane'
+    X_Y_PLANE = 'x-y-plane'
+    Y_Z_PLANE = 'y-z-plane'
 
 def calculate_air_density_ICAO(h_m):
     # ICAO standardne vrijednosti na razini mora
@@ -40,7 +47,7 @@ def getMinMax(numList,inMin = None, inMax = None):
     return xmin,xmax
 
 class Segment:
-    def __init__(self, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t,p_0 = np.zeros(3)):
+    def __init__(self, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t,p_0 = np.zeros(3),sym = Symmetry.NO_SYMMETRY):
         # all angels are in radians
         self._b = b
         self._c0 = c0
@@ -53,6 +60,7 @@ class Segment:
         self._a_r = a_r
         self._a_t = a_t
         self._p_0 = p_0
+        self._sym = sym
 
     @property
     def b(self):

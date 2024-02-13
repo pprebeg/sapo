@@ -2,7 +2,9 @@ import numpy as np
 import time
 
 
-def get_waissll_points_trapezoidal(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t, m):
+def get_waissll_points_trapezoidal(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t, m,sym='none'):
+
+
     i_values = np.arange(m)
     # Kontrolne tocke
     ykt = -b/2 + (i_values + 0.5) * b / m
@@ -13,6 +15,7 @@ def get_waissll_points_trapezoidal(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei
     zkt = np.abs(ykt) * np.tan(phei)
     i = 2 * ykt * (i_t - i_r) / b + i_r
     nj = np.column_stack([np.sin(i + alpha_pos), np.ones(m) * (-np.sin(phei)), np.cos(i + alpha_pos) + np.cos(phei)])
+    nj/np.linalg.norm(nj,axis=1)[:, np.newaxis]
 
     # Hvatiste sile:
 
@@ -37,6 +40,18 @@ def get_waissll_points_trapezoidal(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei
     p_f = np.column_stack([xf, yf, zf]) + p_0
     p_1 = np.column_stack([x1, y1, z1]) + p_0
     p_2 = np.column_stack([x2, y2, z2]) + p_0
+
+    if sym == 'none':
+        pass # do nothing
+    elif sym == 'x-z-plane':
+        pass
+    elif sym == 'x-y-plane':
+        pass
+    elif sym == 'y-z-plane':
+        pass
+    else:
+        print ('Unknown symmetry type: {0}, exiting program!'.format(sym))
+        exit()
 
     return p_kt, nj, p_f, p_1, p_2
 
@@ -193,4 +208,10 @@ def calc_CLa_CDa2(p_kt, nj, p_f, p_1, p_2,A,S):
     sum = np.sum(g_vec * G_vec)
     CDa2_vec = A * sum / m
 
-    return CLa_vec,CDa2_vec
+    ci = np.linalg.norm(p_kt-p_f,axis=1) #3/4c -1/4c = 1/2c
+    ci= ci*2.0
+    dbi = np.linalg.norm(p_2-p_1,axis=1)
+    gama_i_db_i = G_vec*dbi* (b / 2)
+    gama_i_db_i_ni = np.einsum('ij,i->ij', nj, gama_i_db_i)
+
+    return CLa_vec,CDa2_vec,gama_i_db_i_ni
