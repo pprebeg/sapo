@@ -4,7 +4,7 @@ from src.waissll import get_waissll_points_trapezoidal, calc_CLa_CDa2
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from enum import Enum
-from src.aero import calc_air_density_speedsound_ICAO,calc_mach,calc_reynolds
+from src.aero import calc_air_density_speedsound_ICAO, calc_mach, calc_reynolds, calc_friction_drag_constant
 
 class Symmetry(Enum):
     NO_SYMMETRY = 'none'
@@ -252,7 +252,7 @@ class LiftingBody:
         p_kt, n_kt, p_f, p_1, p_2 = self.get_waissll_points()
         A = self.A
         S = self.Sref
-        CLa,CDa2 = calc_CLa_CDa2(p_kt, n_kt, p_f, p_1, p_2,A,S)
+        CLa,CDa2,_ = calc_CLa_CDa2(p_kt, n_kt, p_f, p_1, p_2,A,S)
         return CLa,CDa2
 
     @property
@@ -319,7 +319,10 @@ class FlightCondition:
     def calc_reynolds(self,c):
         Re = self._rho_h * self._V_inf *c/self._mu
         return Re
-    def calc_aero_forces(self,Sref,CLa,CL0,CDa2,CD0,phei):
+
+    def calc_aero_forces(self, Sref, CLa, CL0, CDa2, phei, cr, ct, L0):
+        Re = calc_reynolds(self._mu,self._rho_h,(cr+ct)/2, self._V_inf)
+        CD0 = calc_friction_drag_constant(Re, self.Ma, Sref, cr, ct, L0)
         dp_S = self._dyn_press * Sref
         C_L = CL0 + CLa*self.alpha_rad
         C_D = CD0 + CDa2*self.alpha_rad**2.0
@@ -337,8 +340,10 @@ class FlightCondition:
         return self._N
     @property
     def Ma(self):
-        return  calc_mach(self.V_inf,self._a_h)
-
+        return  calc_mach(self._V_inf,self._a_h)
+    @property
+    def Re(self):
+        return calc_reynolds(self._mu, self._rho_h,self._c, self._V_inf)
     def get_info(self):
         msg = 'FC: Vcr = {0:.2f} m/s; h = {1:.0f} m; alpha = {2:.2f} °; '.format(self._V_inf, self._h_m, self._alpha_deg)
         msg += 'L = {0:.2f} N; D = {1:.2f} N;'.format(self._L, self._D)
@@ -382,11 +387,14 @@ class Aircraft:
         CLa,CDa2 = self.wing.calculate_CLa_CDa2()
         Sref = self.wing.Sref
         phei = self.wing.segments[0].phei
+        cr = self.wing.segments[0].c0
+        ct = self.wing.segments[0].ct
+        L0 = self.wing.segments[0].L0
 
-        CL0= 0.1
-        CD0 = 0.02
+        CL0 = 0.1
+
         for fc in self._flight_conditions:
-            fc.calc_aero_forces(Sref,CLa,CL0,CDa2,CD0,phei)
+            fc.calc_aero_forces(Sref,CLa,CL0,CDa2,phei,cr,ct,L0)
 
     def get_info(self):
         msg = 'W_TO = {0:.2f}'.format(self._W_TO)+'\n'

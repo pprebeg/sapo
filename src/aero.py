@@ -31,9 +31,19 @@ def calc_air_density_speedsound_ICAO(h_m):
     #Sutherlandova formula za dinamičku viskoznost zraka Pa·s
     mu = mu_0 * ((T_0+S)/(T+S))*(T/T_0)**(3/2)
     return rho, a, mu
-def calc_constants(Re,Ma,S,cr,ct,L0):
+def calc_friction_drag_constant(Re, Ma, S, cr, ct, L0):
+    lambd =ct/cr
+    #Izračun parazitnog otpora trenja
+    first_term = 1 / (1 + 0.2 * Ma ** 2) ** 0.467
+    second_term = 0.472 / (np.log10(Re * cr * (1 + lambd) / 2)) ** 2.58
+    third_term = 1 - (((1 - lambd) ** 4) * (4.55 - 0.27 * np.log10(Re)) * cr) / 100
+    Cf = first_term * second_term * third_term
+    R_LS = 1.07 + 8/35*(Ma-0.25)-0.972*(1-np.cos(L0))**1.848
+    Awet = 2*S
+    Cdf = Cf*R_LS*Awet/S #postaviti odgovarajuci omjer Awet i Sref
 
-    return 0
+
+    return Cdf
 
 def test_calc_constans():
     pass
