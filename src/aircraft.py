@@ -3,25 +3,8 @@ import numpy as np
 from src.waissll import get_waissll_points_trapezoidal, calc_CLa_CDa2
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from src.aero import calc_air_density_speedsound_ICAO,calc_mach,calc_reynolds
 
-
-def calculate_air_density_ICAO(h_m):
-    # ICAO standardne vrijednosti na razini mora
-
-    p0 = 101325  # Tlak na razini mora, Pa
-    T0 = 288.15  # Temperatura na razini mora, K
-    g = 9.80665  # Gravitacijska konstanta, m/s²
-    R = 287.05  # Specifična plinska konstanta za suhi zrak, J/(kg·K)
-    L = 0.0065  # Temperaturni gradijent, K/m
-
-    # Izračun temperature i tlaka na zadanoj visini
-    T = T0 - L * h_m
-    p = p0 * (1 - L * h_m / T0) ** (g / (R * L))
-
-    # Izračun gustoće zraka kg/m³
-    rho = p / (R * T)
-
-    return rho
 
 def getMinMax(numList,inMin = None, inMax = None):
     if inMin == None:
@@ -297,15 +280,16 @@ class HorizontalTail(LiftingBody):
 
 class FlightCondition:
     def __init__(self,v_ms,h_m,alpha_deg,wf=1.0):
-        self._V_cr = v_ms # m/s
+        self._V_inf = v_ms # m/s
         self._h_m = h_m # m
         self._alpha_deg = alpha_deg  # °
-        self._rho_h = self._calculate_air_density_ICAO(h_m)
-        self.dyn_press = 0.5*self._rho_h*self._V_cr**2.0
+        self._rho_h, self._a_h, self._mu =  calc_air_density_speedsound_ICAO(h_m)
+        self._dyn_press = 0.5 * self._rho_h * self._V_inf ** 2.0
         self._wf = wf #weight factor of flight condition
         self._L = 0.0
         self._D = 0.0
         self._N = 0.0
+
     @property
     def wf(self):
         return self._wf
@@ -320,15 +304,15 @@ class FlightCondition:
     def alpha_rad(self):
         return np.radians(self._alpha_deg)
     @property
-    def V_cr(self):
-        return  self._V_cr
+    def V_inf(self):
+        return  self._V_inf
 
-    def _calculate_air_density_ICAO(self,h_m):
-        rho_h = calculate_air_density_ICAO(h_m)
-        return rho_h
 
+    def calc_reynolds(self,c):
+        Re = self._rho_h * self._V_inf *c/self._mu
+        return Re
     def calc_aero_forces(self,Sref,CLa,CL0,CDa2,CD0,phei):
-        dp_S = self.dyn_press*Sref
+        dp_S = self._dyn_press * Sref
         C_L = CL0 + CLa*self.alpha_rad
         C_D = CD0 + CDa2*self.alpha_rad**2.0
         self._L = dp_S*C_L
@@ -343,9 +327,12 @@ class FlightCondition:
     @property
     def N(self):
         return self._N
+    @property
+    def Ma(self):
+        return  calc_mach(self.V_inf,self._a_h)
 
     def get_info(self):
-        msg = 'FC: Vcr = {0:.2f} m/s; h = {1:.0f} m; alpha = {2:.2f} °; '.format(self._V_cr,self._h_m, self._alpha_deg)
+        msg = 'FC: Vcr = {0:.2f} m/s; h = {1:.0f} m; alpha = {2:.2f} °; '.format(self._V_inf, self._h_m, self._alpha_deg)
         msg += 'L = {0:.2f} N; D = {1:.2f} N;'.format(self._L, self._D)
         return msg
 
@@ -387,6 +374,7 @@ class Aircraft:
         CLa,CDa2 = self.wing.calculate_CLa_CDa2()
         Sref = self.wing.Sref
         phei = self.wing.segments[0].phei
+
         CL0= 0.1
         CD0 = 0.02
         for fc in self._flight_conditions:
@@ -452,6 +440,7 @@ def create_one_segment_wing():
     b = 10.0
     c_r = 2.0  # root chord
     c_t = 1.5  # tip chord
+    c_m =(c_r+c_t)/2
     L0 = 45/ 57.3
     alpha_pos = 2 / 57.3  # postavni kut krila
     i_r = 0 / 57.3  # kut uvijanja u korjenu krila
