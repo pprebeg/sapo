@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from enum import Enum
 from src.aero import calc_air_density_speedsound_ICAO, calc_mach, calc_reynolds, calc_friction_drag_constant
+from src.panel import get_naca_4_5_airfoils_data
 
 class Symmetry(Enum):
     NO_SYMMETRY = 'none'
@@ -30,7 +31,7 @@ def getMinMax(numList,inMin = None, inMax = None):
     return xmin,xmax
 
 class Segment:
-    def __init__(self, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t,p_0 = np.zeros(3),sym = Symmetry.NO_SYMMETRY):
+    def __init__(self, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, naca_r, naca_t,p_0 = np.zeros(3),sym = Symmetry.NO_SYMMETRY):
         # all angels are in radians
         self._b = b
         self._c0 = c0
@@ -40,11 +41,18 @@ class Segment:
         self._i_r = i_r
         self._i_t = i_t
         self._phei = phei
-        self._a_r = a_r
-        self._a_t = a_t
+        self._cl0_r, self._a_r, self._lw_c_r = get_naca_4_5_airfoils_data(naca_r,50)
+        self._cl0_t, self._a_t, self._lw_c_t = get_naca_4_5_airfoils_data(naca_t,50)
         self._p_0 = p_0
         self._sym = sym
 
+    @property
+    def lw_c(self):
+        return (self._lw_c_r+self._lw_c_t)/2.0
+
+    @property
+    def CL_0(self):
+        return (self._cl0_r + self._cl0_t) / 2.0
     @property
     def b(self):
         return self._b
@@ -275,7 +283,33 @@ class LiftingBody:
             bb += bi
         return bb
 
+    @property
+    def phei(self):
+        fi = 0.0
+        for seg in self._segments:
+            fi += seg.phei
+        return fi
 
+    def get_additional_aero(self):
+        cr = self.wing.segments[0].c0
+        ct = self.wing.segments[0].ct
+        L0 = self.wing.segments[0].L0
+
+        CL0 = (self.wing.segments[0]._cl0_r + self.wing.segments[0]._cl0_t )/2
+        return CL0,
+
+    def calc_friction_drag_constant(self,mu,rho_h,V_inf, Ma):
+        Cf = 0
+        for seg in self.segments:
+            Re = calc_reynolds(mu, rho_h, (seg.c0 + seg.ct) / 2.0, V_inf)
+            Cfi = calc_friction_drag_constant(Re,Ma,seg.Sref,seg.c0,seg.ct,seg.L0,seg.lw_c)
+            Cf +=Cfi*seg.Sref
+        return Cf/self.Sref
+    def calc_CL0(self):
+        CL0 = 0
+        for seg in self.segments:
+            CL0 += seg.CL_0*seg.Sref
+        return CL0/self.Sref
 
 class Wing(LiftingBody):
     def __init__(self):
@@ -320,15 +354,15 @@ class FlightCondition:
         Re = self._rho_h * self._V_inf *c/self._mu
         return Re
 
-    def calc_aero_forces(self, Sref, CLa, CL0, CDa2, phei, cr, ct, L0):
-        Re = calc_reynolds(self._mu,self._rho_h,(cr+ct)/2, self._V_inf)
-        CD0 = calc_friction_drag_constant(Re, self.Ma, Sref, cr, ct, L0)
-        dp_S = self._dyn_press * Sref
-        C_L = CL0 + CLa*self.alpha_rad
-        C_D = CD0 + CDa2*self.alpha_rad**2.0
+    def calc_aero_forces(self,wing:Wing, CLa, CDa2):
+        CD0w = wing.calc_friction_drag_constant(self._mu,self._rho_h, self._V_inf,self.Ma)
+        CL0w = wing.calc_CL0()
+        dp_S = self._dyn_press * wing.Sref
+        C_L = CL0w + CLa*self.alpha_rad
+        C_D = CD0w + CDa2*self.alpha_rad**2.0
         self._L = dp_S*C_L
         self._D = dp_S*C_D
-        self._N = self._L * np.cos(self.alpha_rad) * np.cos(phei)
+        self._N = self._L * np.cos(self.alpha_rad) * np.cos(wing.phei)
     @property
     def D(self):
         return self._D
@@ -385,16 +419,8 @@ class Aircraft:
 
     def run_aero(self):
         CLa,CDa2 = self.wing.calculate_CLa_CDa2()
-        Sref = self.wing.Sref
-        phei = self.wing.segments[0].phei
-        cr = self.wing.segments[0].c0
-        ct = self.wing.segments[0].ct
-        L0 = self.wing.segments[0].L0
-
-        CL0 = 0.1
-
         for fc in self._flight_conditions:
-            fc.calc_aero_forces(Sref,CLa,CL0,CDa2,phei,cr,ct,L0)
+            fc.calc_aero_forces(self.wing,CLa,CDa2)
 
     def get_info(self):
         msg = 'W_TO = {0:.2f}'.format(self._W_TO)+'\n'
@@ -464,7 +490,7 @@ def create_one_segment_wing():
     a0_r = 6.9586 # NACA 2415, korijen krila
     a0_t = 6.6649 # NACA 2408, vrh krila
     phei = 10 / 57.3  # dihedral
-    seg = Segment(b,c_r,c_t,L0,alpha_pos,i_r,i_t,phei,a0_r,a0_t)
+    seg = Segment(b,c_r,c_t,L0,alpha_pos,i_r,i_t,phei,'2415','2408')
     wing.add_segment(seg)
     # Add Flight conditions
     fc = FlightCondition(15.0,0.0,-2.0)
