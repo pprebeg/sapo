@@ -15,7 +15,7 @@ def get_waissll_points_trapezoidal(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei
     zkt = np.abs(ykt) * np.tan(phei)
     i = 2 * ykt * (i_t - i_r) / b + i_r
     nj = np.column_stack([np.sin(i + alpha_pos), np.ones(m) * (-np.sin(phei)), np.cos(i + alpha_pos) + np.cos(phei)])
-    nj/np.linalg.norm(nj,axis=1)[:, np.newaxis]
+    nj = nj/np.linalg.norm(nj,axis=1)[:, np.newaxis]
 
     # Hvatiste sile:
 
@@ -116,10 +116,10 @@ def vectorized_trag(p1, p2, pm):
     B = (Vw2 - Vw1) / (4 * np.pi)
     return B
 
-def calc_tapered_wing():
+def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2, S, A):
+    m, _ = np.shape(p_kt)
     # import geometrija as ge
     # Determine unknown circulation distribution
-    [p_kt, nj, p_f, p_1, p_2, S, A,m] = get_waissll_points_trapezoidal()
     b = np.sqrt(A * S)
     # Determine unknown circulation distribution
     B = np.zeros((m, m))
@@ -215,3 +215,31 @@ def calc_CLa_CDa2(p_kt, nj, p_f, p_1, p_2,A,S):
     gama_i_db_i_ni = np.einsum('ij,i->ij', nj, gama_i_db_i)
 
     return CLa_vec,CDa2_vec,gama_i_db_i_ni
+def test_matlab_geometry():
+    alpha = 4/57.3
+    vinf = 35
+    rho = 1.225
+    p_0 =np.ones(3)
+    b = 10.0
+    c_r = 2.0  # root chord
+    c_t = 2.0  # tip chord
+    L0 = 45/ 57.3
+    alpha_pos = 0 / 57.3  # postavni kut krila
+    i_r = 0 / 57.3  # kut uvijanja u korjenu krila
+    i_t = 0 / 57.3  # kut uvijanja u vrhu krila
+    a0_r = 2*np.pi # NACA 2415, korijen krila
+    a0_t = 2*np.pi # NACA 2408, vrh krila
+    phei = 0 / 57.3  # dihedral
+    m= 80
+
+    sref = b*(c_r+c_t)/2.0
+    A=b**2/sref
+    p_kt, nj, p_f, p_1, p_2 = get_waissll_points_trapezoidal(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m,sym='none')
+    CLa_vec,CDa2_vec= calc_tapered_wing(p_kt, nj, p_f, p_1, p_2, sref, A)
+    L=0.5*rho*vinf**2*CLa_vec*alpha
+    D = 0.5*rho*vinf**2*CDa2_vec*alpha**2
+    print('L =',L)
+    print('D =',D)
+if __name__ == "__main__":
+    test_matlab_geometry()
+
