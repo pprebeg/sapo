@@ -252,8 +252,15 @@ class LiftingBody:
         p_kt, n_kt, p_f, p_1, p_2 = self.get_waissll_points()
         A = self.A
         S = self.Sref
-        CLa,CDa2 = calc_CLa_CDa2(p_kt, n_kt, p_f, p_1, p_2,A,S)
+        CLa,CDa2,Gama_i,w_i_Gamai,L_unit_vec = calc_CLa_CDa2(p_kt, n_kt, p_f, p_1, p_2,A,S,np.ones(3))
         return CLa,CDa2
+
+    def calculate_discretized_forces(self,V_vec):
+        p_kt, n_kt, p_f, p_1, p_2 = self.get_waissll_points()
+        A = self.A
+        S = self.Sref
+        CLa,CDa2,Gama_i,w_i_Gamai,L_unit_vec = calc_CLa_CDa2(p_kt, n_kt, p_f, p_1, p_2,A,S,V_vec)
+        return CLa,CDa2,Gama_i,w_i_Gamai,L_unit_vec
 
     @property
     def Sref(self):
@@ -297,6 +304,8 @@ class FlightCondition:
         self._L = 0.0
         self._D = 0.0
         self._N = 0.0
+        self._sina = np.sin(self.alpha_rad)
+        self._cosa = np.cos(self.alpha_rad)
 
     @property
     def wf(self):
@@ -311,10 +320,17 @@ class FlightCondition:
     @property
     def alpha_rad(self):
         return np.radians(self._alpha_deg)
+
     @property
     def V_inf(self):
         return  self._V_inf
 
+    @property
+    def V_inf_vec(self):
+        V_inf_x = self.V_inf * self._cosa
+        V_inf_z = self.V_inf * self._sina
+        V_inf_vec = np.array([V_inf_x, 0, V_inf_z])
+        return V_inf_vec
 
     def calc_reynolds(self,c):
         Re = self._rho_h * self._V_inf *c/self._mu
@@ -326,6 +342,24 @@ class FlightCondition:
         self._L = dp_S*C_L
         self._D = dp_S*C_D
         self._N = self._L * np.cos(self.alpha_rad) * np.cos(phei)
+
+    def calc_distributed_aero_forces(self,Sref,CLa,CL0,CDa2,CD0,phei,Gama_i,w_i_Gamai,L_unit_vec):
+        dp_S = self._dyn_press * Sref
+        CL0=0.0
+        C_L = CL0 + CLa*self.alpha_rad
+        C_D = CD0 + CDa2*self.alpha_rad**2.0
+        L = dp_S*C_L
+        D = dp_S*C_D
+        N = L * np.cos(self.alpha_rad) * np.cos(phei)
+
+
+        Lift_vec= self._rho_h*self.V_inf*Gama_i
+        Lift=np.sum(Lift_vec,axis=0)
+        Drag_vec = self._rho_h*w_i_Gamai
+        Drag = np.sum(Drag_vec, axis=0)
+        pass
+
+
     @property
     def D(self):
         return self._D
@@ -379,14 +413,18 @@ class Aircraft:
         self._wing = value
 
     def run_aero(self):
-        CLa,CDa2 = self.wing.calculate_CLa_CDa2()
+ #       CLa,CDa2 = self.wing.calculate_CLa_CDa2()
         Sref = self.wing.Sref
         phei = self.wing.segments[0].phei
 
         CL0= 0.1
         CD0 = 0.02
+ #       for fc in self._flight_conditions:
+ #           fc.calc_aero_forces(Sref,CLa,CL0,CDa2,CD0,phei)
+
         for fc in self._flight_conditions:
-            fc.calc_aero_forces(Sref,CLa,CL0,CDa2,CD0,phei)
+            CLa,CDa2,Gama_i,w_i_Gamai,L_unit_vec = self.wing.calculate_discretized_forces(fc.V_inf_vec)
+            fc.calc_distributed_aero_forces(Sref,CLa,CL0,CDa2,CD0,phei,Gama_i,w_i_Gamai,L_unit_vec)
 
     def get_info(self):
         msg = 'W_TO = {0:.2f}'.format(self._W_TO)+'\n'
@@ -450,16 +488,19 @@ def create_one_segment_wing():
     c_t = 1.5  # tip chord
     c_m =(c_r+c_t)/2
     L0 = 45/ 57.3
-    alpha_pos = 2 / 57.3  # postavni kut krila
+    alpha_pos = 0 / 57.3  # postavni kut krila
     i_r = 0 / 57.3  # kut uvijanja u korjenu krila
-    i_t = 6 / 57.3  # kut uvijanja u vrhu krila
+    i_t = 0 / 57.3  # kut uvijanja u vrhu krila
     a0_r = 6.9586 # NACA 2415, korijen krila
+    a0_r = (0.604461 -0.236203)/(np.radians(4.0)-np.radians(0.0))
     a0_t = 6.6649 # NACA 2408, vrh krila
-    phei = 10 / 57.3  # dihedral
+    a0_r = 2*np.pi #
+    a0_t = 2*np.pi #
+    phei = 0.0 / 57.3  # dihedral
     seg = Segment(b,c_r,c_t,L0,alpha_pos,i_r,i_t,phei,a0_r,a0_t)
     wing.add_segment(seg)
     # Add Flight conditions
-    fc = FlightCondition(15.0,0.0,-2.0)
+    fc = FlightCondition(15.0,0.0,2.0)
     test.add_flight_condition(fc)
     test.run_aero()
     return test

@@ -185,8 +185,9 @@ def calc_tapered_wing():
     print('Test CDa2_vec', np.allclose(CDa2, CDa2_vec, 1e-5))
     return CLa_vec,CDa2_vec
 
-def calc_CLa_CDa2(p_kt, nj, p_f, p_1, p_2,A,S):
+def calc_CLa_CDa2(p_kt, nj, p_f, p_1, p_2,A,S,V_vec):
     m,_ =np.shape(p_kt)
+    nj= nj / np.linalg.norm(nj, axis=1)[:, np.newaxis]
     # Determine unknown circulation distribution
     b = np.sqrt(A * S)
     # Determine unknown circulation distribution
@@ -198,20 +199,28 @@ def calc_CLa_CDa2(p_kt, nj, p_f, p_1, p_2,A,S):
     B_vec = np.einsum('ijk,ik->ij', BV_vec, nj)
 
     G_vec = -np.linalg.solve(B_vec, E / (b / 2))
+    rhs=np.einsum('j,ij->i', V_vec, nj)
+    Gama_i = -np.linalg.solve(B_vec, rhs)
     CLa_vec = A * np.sum(G_vec) / m
+    L_vec = np.cross(V_vec, np.cross(nj,V_vec))
+    L_unit_vec = L_vec / np.linalg.norm(L_vec, axis=1)[:, np.newaxis]
 
      # Vectorization
-    DV_vec = vectorized_trag(p_1, p_2, p_f_vec)
-    DV_vec = np.einsum('ijk,j->ijk', DV_vec, G_vec)
+    Dijk = vectorized_trag(p_1, p_2, p_f_vec)
+    DV_vec = np.einsum('ijk,j->ijk', Dijk, G_vec)
     D_vec = DV_vec[..., 2]
     g_vec = -(b / 2) * np.sum(D_vec, axis=1)
     sum = np.sum(g_vec * G_vec)
     CDa2_vec = A * sum / m
 
-    ci = np.linalg.norm(p_kt-p_f,axis=1) #3/4c -1/4c = 1/2c
-    ci= ci*2.0
-    dbi = np.linalg.norm(p_2-p_1,axis=1)
-    gama_i_db_i = G_vec*dbi* (b / 2)
-    gama_i_db_i_ni = np.einsum('ij,i->ij', nj, gama_i_db_i)
+    w_ijk=np.einsum('ijk,j->ijk', Dijk, Gama_i)
+    w_ij = w_ijk[..., 2]
+    w_i = np.sum(w_ij, axis=1)
+    w_i_Gamai = w_i*Gama_i
 
-    return CLa_vec,CDa2_vec,gama_i_db_i_ni
+
+
+    ci = np.linalg.norm(p_kt-p_f,axis=1) #3/4c -1/4c = 1/2c
+    ci= ci*2.0 # not used
+    dbi = np.linalg.norm(p_2-p_1,axis=1) # ovo nije projekcija
+    return CLa_vec,CDa2_vec,Gama_i*dbi,w_i_Gamai*dbi,L_unit_vec
