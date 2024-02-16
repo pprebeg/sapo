@@ -1,5 +1,5 @@
 import numpy as np
-
+from src.panel import get_naca_4_5_airfoils_data
 
 def calc_reynolds(mu, rho_h, c_m, V_inf):
     Re = rho_h * V_inf * c_m / mu
@@ -31,12 +31,25 @@ def calc_air_density_speedsound_ICAO(h_m):
     #Sutherlandova formula za dinamičku viskoznost zraka Pa·s
     mu = mu_0 * ((T_0+S)/(T+S))*(T/T_0)**(3/2)
     return rho, a, mu
-def calc_constants(Re,Ma,S,cr,ct,L0):
+def calc_friction_drag_constant(Re, Ma, S, cr, ct, L0,A_wt_A_ref):
+    lambd =ct/cr
+    #Izračun parazitnog otpora trenja
+    first_term = 1 / (1 + 0.2 * Ma ** 2) ** 0.467
+    second_term = 0.472 / (np.log10(Re * cr * (1 + lambd) / 2)) ** 2.58
+    third_term = 1 - (((1 - lambd) ** 4) * (4.55 - 0.27 * np.log10(Re)) * cr) / 100
+    Cf = first_term * second_term * third_term
+    R_LS = 1.07 + 8/35*(Ma-0.25)-0.972*(1-np.cos(L0))**1.848
+    Awet = A_wt_A_ref*S
+    Cdf = Cf*R_LS*Awet/S
 
-    return 0
+
+    return Cdf
+
 
 def test_calc_constans():
-    pass
+    Cdf =calc_friction_drag_constant(3*10**6,0.2,10,1,1,0)
+    print('Cdf = ', Cdf)
 
 if __name__ == "__main__":
+
     test_calc_constans()
