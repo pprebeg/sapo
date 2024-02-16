@@ -6,8 +6,54 @@ def get_unit_vector_mx3(vec):
     unit_vec = vec / np.linalg.norm(vec, axis=1)[:, np.newaxis]
     return unit_vec
 
-def get_waissll_points_trapezoidal(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t, m,sym='none'):
-    i_values = np.arange(m)
+def get_waissll_points_segment(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t, m,sym=False,xrot_deg=0.0):
+    xrot = np.radians(xrot_deg)
+    # Kontrolne tocke
+    y_all = np.linspace(0.0, b, m + 1)
+    c_all = c0 - (c0 - ct) * np.abs(y_all) /b
+    x_all = 0.25 * c_all + np.abs(y_all) * np.tan(L0)
+    z_all = np.abs(y_all) * np.tan(phei)
+    # Lijevi vrh vrtloga:
+    y1 = y_all[0:m]
+    x1 = x_all[0:m]
+    z1 = z_all[0:m]
+    # Desni vrh vrtloga:
+    y2 = y_all[1:m+1]
+    x2 = x_all[1:m+1]
+    z2 = z_all[1:m+1]
+    # Kontrolne točke
+    dy=(y_all[1]-y_all[0])/2.0
+    ykt = y1 + dy
+    ckt = c0 - (c0 - ct) * np.abs(ykt) / b
+    a0 = ((a_t - a_r) / b) * ykt + a_r
+    h = (a0 * ckt) / (4 * np.pi)
+    xkt = 0.25 * ckt + h + np.abs(ykt) * np.tan(L0)
+    zkt = np.abs(ykt) * np.tan(phei)
+    i = ykt * (i_t - i_r) / b + i_r
+    nj = np.column_stack([np.sin(i + alpha_pos), np.ones(m) * (-np.sin(phei)), np.cos(i + alpha_pos) + np.cos(phei)])
+    nj = get_unit_vector_mx3(nj)
+    c_i = np.column_stack([np.cos(i), np.zeros(m), np.sin(i)])
+    c_i_e = get_unit_vector_mx3(c_i)
+
+    # Hvatiste sile:
+    yf = ykt
+    cf = ckt
+    xf = xkt - h
+    zf = zkt
+
+    p_kt = np.column_stack([xkt, ykt, zkt]) + p_0
+    p_f = np.column_stack([xf, yf, zf]) + p_0
+    p_1 = np.column_stack([x1, y1, z1]) + p_0
+    p_2 = np.column_stack([x2, y2, z2]) + p_0
+
+    if sym :
+        pass # duplicate
+    if not np.isclose(xrot,0.0) :
+        pass # rotate
+
+    return p_kt, nj, p_f, p_1, p_2, c_i_e
+
+def get_waissll_points_trapezoidal(b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t, m):
     # Kontrolne tocke
     y_all = np.linspace(-b / 2, b / 2, m + 1)
     c_all = c0 - (c0 - ct) * np.abs(y_all) / (b / 2)
@@ -41,22 +87,10 @@ def get_waissll_points_trapezoidal(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei
     xf = xkt - h
     zf = zkt
 
-    p_kt = np.column_stack([xkt, ykt, zkt]) + p_0
-    p_f = np.column_stack([xf, yf, zf]) + p_0
-    p_1 = np.column_stack([x1, y1, z1]) + p_0
-    p_2 = np.column_stack([x2, y2, z2]) + p_0
-
-    if sym == 'none':
-        pass # do nothing
-    elif sym == 'x-z-plane':
-        pass
-    elif sym == 'x-y-plane':
-        pass
-    elif sym == 'y-z-plane':
-        pass
-    else:
-        print ('Unknown symmetry type: {0}, exiting program!'.format(sym))
-        exit()
+    p_kt = np.column_stack([xkt, ykt, zkt])
+    p_f = np.column_stack([xf, yf, zf])
+    p_1 = np.column_stack([x1, y1, z1])
+    p_2 = np.column_stack([x2, y2, z2])
 
     return p_kt, nj, p_f, p_1, p_2, c_i_e
 
@@ -279,7 +313,7 @@ def test_matlab_geometry():
 
     sref = b*(c_r+c_t)/2.0
     A=b**2/sref
-    p_kt, nj, p_f, p_1, p_2,c_i_e = get_waissll_points_trapezoidal(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m,sym='none')
+    p_kt, nj, p_f, p_1, p_2,c_i_e = get_waissll_points_trapezoidal(b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m)
     CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec= calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,c_i_e, sref, A,V_inf_vec)
     L=0.5*rho*V_inf**2*CLa_vec*alpha*sref
     D = 0.5*rho*V_inf**2*CDa2_vec*alpha**2*sref
@@ -293,6 +327,70 @@ def test_matlab_geometry():
     print('FL_norm =', np.linalg.norm(FLsum))
     print('FD =', FDsum)
     print('FD_norm =', np.linalg.norm(FDsum))
+
+def test_symetric_segment_geometry():
+    alpha = 4/57.3
+    V_inf = 15
+    V_inf_x = V_inf * np.cos(alpha)
+    V_inf_z = V_inf * np.sin(alpha)
+    V_inf_vec = np.array([V_inf_x, 0, V_inf_z])
+    rho = 1.225
+    p_0 =np.zeros(3)
+    b = 10.0
+    c_r = 2.0  # root chord
+    c_t = 2.0  # tip chord
+    L0 = 45/ 57.3
+    alpha_pos = 0 / 57.3  # postavni kut krila
+    i_r = 0 / 57.3  # kut uvijanja u korjenu krila
+    i_t = 0 / 57.3  # kut uvijanja u vrhu krila
+    a0_r = 2*np.pi # NACA 2415, korijen krila
+    a0_t = 2*np.pi # NACA 2408, vrh krila
+    phei = 0 / 57.3  # dihedral
+    m= 80
+
+    sref = b*(c_r+c_t)/2.0
+    A=b**2/sref
+    p_kt_1, nj_1, p_f_1, p_1_1, p_2_1,c_i_e_1 = get_waissll_points_segment(p_0,b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m,True)
+
+
+    p_kt_2, nj_2, p_f_2, p_1_2, p_2_2, c_i_e_2 = get_waissll_points_segment(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r,
+                                                                a0_t, m, True)
+    p_kt = np.empty((0, 3))
+    nj = np.empty((0, 3))
+    p_f = np.empty((0, 3))
+    p_1 = np.empty((0, 3))
+    p_2 = np.empty((0, 3))
+    c_i_e = np.empty((0, 3))
+
+    p_kt = np.concatenate((p_kt, p_kt_1))
+    p_f = np.concatenate((p_f, p_f_1))
+    p_1 = np.concatenate((p_1, p_1_1))
+    p_2 = np.concatenate((p_2, p_2_1))
+    nj = np.concatenate((nj, nj_1))
+    c_i_e = np.concatenate((c_i_e, c_i_e_1))
+
+    p_kt = np.concatenate((p_kt, p_kt_2))
+    p_f = np.concatenate((p_f, p_f_2))
+    p_1 = np.concatenate((p_1, p_1_2))
+    p_2 = np.concatenate((p_2, p_2_2))
+    nj = np.concatenate((nj, nj_2))
+    c_i_e = np.concatenate((c_i_e, c_i_e_2))
+
+    CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec= calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,c_i_e, sref, A,V_inf_vec)
+    L=0.5*rho*V_inf**2*CLa_vec*alpha*sref
+    D = 0.5*rho*V_inf**2*CDa2_vec*alpha**2*sref
+    FL = rho* np.cross(V_inf_vec,Gama_db_i_vec)
+    FD = rho * np.cross(w_i_vec, Gama_db_i_vec)
+    FLsum = np.sum(FL,axis=0)
+    FDsum = np.sum(FD, axis=0)
+    print('L =',L)
+    print('D =',D)
+    print('FL =', FLsum)
+    print('FL_norm =', np.linalg.norm(FLsum))
+    print('FD =', FDsum)
+    print('FD_norm =', np.linalg.norm(FDsum))
+
 if __name__ == "__main__":
     test_matlab_geometry()
+    test_symetric_segment_geometry()
 
