@@ -10,10 +10,20 @@ def get_waissll_points_trapezoidal(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei
     i_values = np.arange(m)
     # Kontrolne tocke
     y_all = np.linspace(-b / 2, b / 2, m + 1)
+    c_all = c0 - (c0 - ct) * np.abs(y_all) / (b / 2)
+    x_all = 0.25 * c_all + np.abs(y_all) * np.tan(L0)
+    z_all = np.abs(y_all) * np.tan(phei)
+    # Lijevi vrh vrtloga:
     y1 = y_all[0:m]
+    x1 = x_all[0:m]
+    z1 = z_all[0:m]
+    # Desni vrh vrtloga:
+    y2 = y_all[1:m+1]
+    x2 = x_all[1:m+1]
+    z2 = z_all[1:m+1]
+    # Kontrolne točke
     dy=(y_all[1]-y_all[0])/2.0
     ykt = y1 + dy
-    #ykt = -b/2 + (i_values + 0.5) * b / m
     ckt = c0 - (c0 - ct) * np.abs(ykt) / (b / 2)
     a0 = ((2 * (a_t - a_r)) / b) * ykt + a_r
     h = (a0 * ckt) / (4 * np.pi)
@@ -26,24 +36,10 @@ def get_waissll_points_trapezoidal(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei
     c_i_e = get_unit_vector_mx3(c_i)
 
     # Hvatiste sile:
-
     yf = ykt
     cf = ckt
     xf = xkt - h
     zf = zkt
-
-    # Lijevi vrh vrtloga:
-
-
-    c1 = c0 - (c0 - ct) * abs(y1) / (b / 2)
-    x1 = 0.25 * c1 + abs(y1) * np.tan(L0)
-    z1 = np.abs(y1) * np.tan(phei)
-
-    # Desni vrh vrtloga:
-    y2 = y_all[1:m+1]
-    c2 = c0 - (c0 - ct) * np.abs(y2) / (b / 2)
-    x2 = 0.25 * c2 + np.abs(y2) * np.tan(L0)
-    z2 = np.abs(y2) * np.tan(phei)
 
     p_kt = np.column_stack([xkt, ykt, zkt]) + p_0
     p_f = np.column_stack([xf, yf, zf]) + p_0
