@@ -6,6 +6,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from enum import Enum
 from src.aero import calc_air_density_speedsound_ICAO, calc_mach, calc_reynolds, calc_friction_drag_constant
 from src.panel import get_naca_4_5_airfoils_data
+from typing import Dict
 
 class Symmetry(Enum):
     NO_SYMMETRY = 'none'
@@ -29,6 +30,114 @@ def getMinMax(numList,inMin = None, inMax = None):
             xmin=x
 
     return xmin,xmax
+
+class FlightCondition:
+    def __init__(self,v_ms,h_m,alpha_deg,wf=1.0):
+        self._V_inf = v_ms # m/s
+        self._h_m = h_m # m
+        self._alpha_deg = alpha_deg  # °
+        self._rho_h, self._a_h, self._mu =  calc_air_density_speedsound_ICAO(h_m)
+        self._dyn_press = 0.5 * self._rho_h * self._V_inf ** 2.0
+        self._wf = wf #weight factor of flight condition
+        self._L = 0.0
+        self._D = 0.0
+        self._N = 0.0
+        self._sina = np.sin(self.alpha_rad)
+        self._cosa = np.cos(self.alpha_rad)
+
+        self._force_vectors:Dict[str,np.ndarray] = {}
+        self._force_locations:Dict[str,np.ndarray]  = {}
+        self._moment_vectors:Dict[str,np.ndarray]  = {}
+
+    @property
+    def wf(self):
+        return self._wf
+    @property
+    def alpha_deg(self):
+        return self._alpha_deg
+
+    @alpha_deg.setter
+    def alpha_deg(self, value):
+        self._alpha_deg = value
+    @property
+    def alpha_rad(self):
+        return np.radians(self._alpha_deg)
+
+    @property
+    def V_inf(self):
+        return  self._V_inf
+
+    @property
+    def V_inf_vec(self):
+        V_inf_x = self.V_inf * self._cosa
+        V_inf_z = self.V_inf * self._sina
+        V_inf_vec = np.array([V_inf_x, 0, V_inf_z])
+        return V_inf_vec
+
+    def calc_reynolds(self,c):
+        Re = self._rho_h * self._V_inf *c/self._mu
+        return Re
+
+    def clear_forces_and_moments(self):
+        self._force_vectors.clear()
+        self._force_locations.clear()
+        self._moment_vectors.clear()
+
+    def add_force_vectors_and_locations(self,key,force_vectors,force_location):
+        self._force_vectors[key] = force_vectors
+        self._force_location[key] = force_vectors
+
+
+    def calc_aero_forces(self,wing:Wing, CLa, CDa2):
+        CD0w = wing.calc_friction_drag_constant(self._mu,self._rho_h, self._V_inf,self.Ma)
+        CL0w = wing.calc_CL0()
+        dp_S = self._dyn_press * wing.Sref
+        C_L = CL0w + CLa*self.alpha_rad
+        C_D = CD0w + CDa2*self.alpha_rad**2.0
+        self._L = dp_S*C_L
+        self._D = dp_S*C_D
+        self._N = self._L * np.cos(self.alpha_rad) * np.cos(wing.phei)
+
+    def calc_distributed_aero_forces(self,Sref,CLa,CL0,CDa2,CD0,phei,Gama_i,w_i_Gamai,L_unit_vec):
+        dp_S = self._dyn_press * Sref
+        CL0=0.0
+        C_L = CL0 + CLa*self.alpha_rad
+        C_D = CD0 + CDa2*self.alpha_rad**2.0
+        L = dp_S*C_L
+        D = dp_S*C_D
+        N = L * np.cos(self.alpha_rad) * np.cos(phei)
+
+
+        Lift_vec= self._rho_h*self.V_inf*Gama_i
+        Lift=np.sum(Lift_vec,axis=0)
+        Drag_vec = self._rho_h*w_i_Gamai
+        Drag = np.sum(Drag_vec, axis=0)
+        pass
+
+
+    @property
+    def D(self):
+        return self._D
+
+    @property
+    def L(self):
+        return self._L
+
+    @property
+    def N(self):
+        return self._N
+
+    @property
+    def Ma(self):
+        return calc_mach(self.V_inf,self._a_h)
+
+    @property
+    def Re(self):
+        return calc_reynolds(self._mu, self._rho_h,self._c, self._V_inf)
+    def get_info(self):
+        msg = 'FC: Vcr = {0:.2f} m/s; h = {1:.0f} m; alpha = {2:.2f} °; '.format(self._V_inf, self._h_m, self._alpha_deg)
+        msg += 'L = {0:.2f} N; D = {1:.2f} N;'.format(self._L, self._D)
+        return msg
 
 class Segment:
     def __init__(self, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, naca_r, naca_t,p_0 = np.zeros(3),sym = Symmetry.NO_SYMMETRY):
@@ -270,6 +379,9 @@ class LiftingBody:
         CLa,CDa2,Gama_i,w_i_Gamai,L_unit_vec = calc_CLa_CDa2(p_kt, n_kt, p_f, p_1, p_2,A,S,V_vec)
         return CLa,CDa2,Gama_i,w_i_Gamai,L_unit_vec
 
+    def calculate_aero_forces(self,fc:FlightCondition):
+        pass
+    
     @property
     def Sref(self):
         sref = 0.0
@@ -317,6 +429,7 @@ class LiftingBody:
         for seg in self.segments:
             CL0 += seg.CL_0*seg.Sref
         return CL0/self.Sref
+    def calculate_aero(self,fc):
 
 class Wing(LiftingBody):
     def __init__(self):
@@ -327,99 +440,7 @@ class HorizontalTail(LiftingBody):
     def __init__(self):
         super().__init__('htail')
 
-class FlightCondition:
-    def __init__(self,v_ms,h_m,alpha_deg,wf=1.0):
-        self._V_inf = v_ms # m/s
-        self._h_m = h_m # m
-        self._alpha_deg = alpha_deg  # °
-        self._rho_h, self._a_h, self._mu =  calc_air_density_speedsound_ICAO(h_m)
-        self._dyn_press = 0.5 * self._rho_h * self._V_inf ** 2.0
-        self._wf = wf #weight factor of flight condition
-        self._L = 0.0
-        self._D = 0.0
-        self._N = 0.0
-        self._sina = np.sin(self.alpha_rad)
-        self._cosa = np.cos(self.alpha_rad)
 
-    @property
-    def wf(self):
-        return self._wf
-    @property
-    def alpha_deg(self):
-        return self._alpha_deg
-
-    @alpha_deg.setter
-    def alpha_deg(self, value):
-        self._alpha_deg = value
-    @property
-    def alpha_rad(self):
-        return np.radians(self._alpha_deg)
-
-    @property
-    def V_inf(self):
-        return  self._V_inf
-
-    @property
-    def V_inf_vec(self):
-        V_inf_x = self.V_inf * self._cosa
-        V_inf_z = self.V_inf * self._sina
-        V_inf_vec = np.array([V_inf_x, 0, V_inf_z])
-        return V_inf_vec
-
-    def calc_reynolds(self,c):
-        Re = self._rho_h * self._V_inf *c/self._mu
-        return Re
-
-    def calc_aero_forces(self,wing:Wing, CLa, CDa2):
-        CD0w = wing.calc_friction_drag_constant(self._mu,self._rho_h, self._V_inf,self.Ma)
-        CL0w = wing.calc_CL0()
-        dp_S = self._dyn_press * wing.Sref
-        C_L = CL0w + CLa*self.alpha_rad
-        C_D = CD0w + CDa2*self.alpha_rad**2.0
-        self._L = dp_S*C_L
-        self._D = dp_S*C_D
-        self._N = self._L * np.cos(self.alpha_rad) * np.cos(wing.phei)
-
-    def calc_distributed_aero_forces(self,Sref,CLa,CL0,CDa2,CD0,phei,Gama_i,w_i_Gamai,L_unit_vec):
-        dp_S = self._dyn_press * Sref
-        CL0=0.0
-        C_L = CL0 + CLa*self.alpha_rad
-        C_D = CD0 + CDa2*self.alpha_rad**2.0
-        L = dp_S*C_L
-        D = dp_S*C_D
-        N = L * np.cos(self.alpha_rad) * np.cos(phei)
-
-
-        Lift_vec= self._rho_h*self.V_inf*Gama_i
-        Lift=np.sum(Lift_vec,axis=0)
-        Drag_vec = self._rho_h*w_i_Gamai
-        Drag = np.sum(Drag_vec, axis=0)
-        pass
-
-
-    @property
-    def D(self):
-        return self._D
-
-    @property
-    def L(self):
-        return self._L
-
-    @property
-    def N(self):
-        return self._N
-
-    @property
-    def Ma(self):
-        return calc_mach(self.V_inf,self._a_h)
-
-    @property
-    def Re(self):
-        return calc_reynolds(self._mu, self._rho_h,self._c, self._V_inf)
-    def get_info(self):
-        msg = 'FC: Vcr = {0:.2f} m/s; h = {1:.0f} m; alpha = {2:.2f} °; '.format(self._V_inf, self._h_m, self._alpha_deg)
-        msg += 'L = {0:.2f} N; D = {1:.2f} N;'.format(self._L, self._D)
-        return msg
 
 
 class Aircraft:
