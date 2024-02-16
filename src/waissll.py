@@ -22,6 +22,8 @@ def get_waissll_points_trapezoidal(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei
     i = 2 * ykt * (i_t - i_r) / b + i_r
     nj = np.column_stack([np.sin(i + alpha_pos), np.ones(m) * (-np.sin(phei)), np.cos(i + alpha_pos) + np.cos(phei)])
     nj = get_unit_vector_mx3(nj)
+    c_i = np.column_stack([np.cos(i), np.zeros(m), np.sin(i)])
+    c_i_e = get_unit_vector_mx3(c_i)
 
     # Hvatiste sile:
 
@@ -60,7 +62,7 @@ def get_waissll_points_trapezoidal(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei
         print ('Unknown symmetry type: {0}, exiting program!'.format(sym))
         exit()
 
-    return p_kt, nj, p_f, p_1, p_2
+    return p_kt, nj, p_f, p_1, p_2, c_i_e
 
 def trag(p1, p2, pm):
     import numpy as np
@@ -123,7 +125,7 @@ def vectorized_trag(p1, p2, pm):
     B = (Vw2 - Vw1) / (4 * np.pi)
     return B
 
-def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2, S, A,V_vec):
+def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,c_i_e, S, A,V_vec):
     m, _ = np.shape(p_kt)
     # import geometrija as ge
     # Determine unknown circulation distribution
@@ -159,7 +161,6 @@ def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2, S, A,V_vec):
     rhs = np.einsum('j,ij->i', V_vec, nj)
     Gama_i = -np.linalg.solve(B_vec, rhs)
     Gama_i_e = get_unit_vector_mx3(np.cross(nj, V_vec))
-    c_i_e = np.einsum('i,j->ij',np.ones(m), np.array([1,0,0])) # ovo treba doći iz geometrije!!!
     b_i_e = get_unit_vector_mx3(np.cross(nj,c_i_e))
     dbi = np.einsum('ij,ij->i',p_2 - p_1, b_i_e)
     Gama_db_i_vec = np.einsum('i,ij->ij', Gama_i*dbi, Gama_i_e)
@@ -278,12 +279,12 @@ def test_matlab_geometry():
     a0_r = 2*np.pi # NACA 2415, korijen krila
     a0_t = 2*np.pi # NACA 2408, vrh krila
     phei = 0 / 57.3  # dihedral
-    m= 8
+    m= 80
 
     sref = b*(c_r+c_t)/2.0
     A=b**2/sref
-    p_kt, nj, p_f, p_1, p_2 = get_waissll_points_trapezoidal(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m,sym='none')
-    CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec= calc_tapered_wing(p_kt, nj, p_f, p_1, p_2, sref, A,V_inf_vec)
+    p_kt, nj, p_f, p_1, p_2,c_i_e = get_waissll_points_trapezoidal(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m,sym='none')
+    CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec= calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,c_i_e, sref, A,V_inf_vec)
     L=0.5*rho*V_inf**2*CLa_vec*alpha*sref
     D = 0.5*rho*V_inf**2*CDa2_vec*alpha**2*sref
     FL = rho* np.cross(V_inf_vec,Gama_db_i_vec)
