@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 
 def get_unit_vector_mx3(vec):
@@ -9,20 +10,20 @@ def get_unit_vector_mx3(vec):
 def get_waissll_points_segment(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t, m,sym=False,xrot_deg=0.0):
     xrot = np.radians(xrot_deg)
     # Kontrolne tocke
-    y_all = np.linspace(0.0, b, m + 1)
-    c_all = c0 - (c0 - ct) * np.abs(y_all) /b
-    x_all = 0.25 * c_all + np.abs(y_all) * np.tan(L0)
-    z_all = np.abs(y_all) * np.tan(phei)
+    y_all_sym = np.linspace(0.0, b, m + 1)
+    c_all = c0 - (c0 - ct) * np.abs(y_all_sym) /b
+    x_all = 0.25 * c_all + np.abs(y_all_sym) * np.tan(L0)
+    z_all = np.abs(y_all_sym) * np.tan(phei)
     # Lijevi vrh vrtloga:
-    y1 = y_all[0:m]
+    y1 = y_all_sym[0:m]
     x1 = x_all[0:m]
     z1 = z_all[0:m]
     # Desni vrh vrtloga:
-    y2 = y_all[1:m+1]
+    y2 = y_all_sym[1:m+1]
     x2 = x_all[1:m+1]
     z2 = z_all[1:m+1]
     # Kontrolne točke
-    dy=(y_all[1]-y_all[0])/2.0
+    dy=(y_all_sym[1]-y_all_sym[0])/2.0
     ykt = y1 + dy
     ckt = c0 - (c0 - ct) * np.abs(ykt) / b
     a0 = ((a_t - a_r) / b) * ykt + a_r
@@ -46,10 +47,27 @@ def get_waissll_points_segment(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_
     p_1 = np.column_stack([x1, y1, z1]) + p_0
     p_2 = np.column_stack([x2, y2, z2]) + p_0
 
+
     if sym :
-        pass # duplicate
+        sym_matrix = np.array([1, -1, 1])
+        p_kt_sym = p_kt*sym_matrix
+        p_f_sym = p_f*sym_matrix
+        p_1_sym = p_2*sym_matrix
+        p_2_sym = p_1*sym_matrix
+        nj_sym = nj*sym_matrix
+
+        p_kt = np.concatenate((p_kt_sym, p_kt))
+        p_f = np.concatenate((p_f_sym, p_f))
+        p_1 = np.concatenate((p_1_sym, p_1))
+        p_2 = np.concatenate((p_2_sym, p_2))
+        nj = np.concatenate((nj_sym,nj))
+        c_i_e = np.concatenate((c_i_e,c_i_e))
+
     if not np.isclose(xrot,0.0) :
         pass # rotate
+
+
+
 
     return p_kt, nj, p_f, p_1, p_2, c_i_e
 
@@ -290,7 +308,18 @@ def calc_CLa_CDa2(p_kt, nj, p_f, p_1, p_2,A,S,V_vec):
     dbi = np.linalg.norm(p_2-p_1,axis=1) # ovo nije projekcija
     return CLa_vec,CDa2_vec,Gama_i*dbi,w_i_Gamai*dbi,L_unit_vec
 
-
+def plot_planform(p_kt, p_f, p_1, p_2):
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.plot(p_kt[:, 0], p_kt[:, 1], p_kt[:, 2],'+', label='kt')
+    ax.plot(p_f[:, 0], p_f[:, 1], p_f[:, 2],'.', label='f')
+    ax.plot(p_1[:, 0], p_1[:, 1], p_1[:, 2], '.', label='1')
+    ax.plot(p_2[:, 0], p_2[:, 1], p_2[:, 2], '.', label='2')
+    ax.set_xlabel('x, m')
+    ax.set_ylabel('y, m')
+    ax.set_zlabel('z, m')
+    ax.legend()
+    plt.show()
 def test_matlab_geometry():
     alpha = 4/57.3
     V_inf = 15
@@ -309,7 +338,7 @@ def test_matlab_geometry():
     a0_r = 2*np.pi # NACA 2415, korijen krila
     a0_t = 2*np.pi # NACA 2408, vrh krila
     phei = 0 / 57.3  # dihedral
-    m= 80
+    m= 8
 
     sref = b*(c_r+c_t)/2.0
     A=b**2/sref
@@ -336,25 +365,26 @@ def test_symetric_segment_geometry():
     V_inf_vec = np.array([V_inf_x, 0, V_inf_z])
     rho = 1.225
     p_0 =np.zeros(3)
-    b = 10.0
+    b = 2.5
     c_r = 2.0  # root chord
     c_t = 2.0  # tip chord
     L0 = 45/ 57.3
     alpha_pos = 0 / 57.3  # postavni kut krila
     i_r = 0 / 57.3  # kut uvijanja u korjenu krila
     i_t = 0 / 57.3  # kut uvijanja u vrhu krila
-    a0_r = 2*np.pi # NACA 2415, korijen krila
-    a0_t = 2*np.pi # NACA 2408, vrh krila
+    a0_r = 2*np.pi  # NACA 2415, korijen krila
+    a0_t = 2*np.pi  # NACA 2408, vrh krila
     phei = 0 / 57.3  # dihedral
-    m= 80
+    m = 2
 
     sref = b*(c_r+c_t)/2.0
-    A=b**2/sref
+    A = b**2/sref
     p_kt_1, nj_1, p_f_1, p_1_1, p_2_1,c_i_e_1 = get_waissll_points_segment(p_0,b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m,True)
 
+    p_0 = np.array([b*np.tan(L0), b, 0])
 
-    p_kt_2, nj_2, p_f_2, p_1_2, p_2_2, c_i_e_2 = get_waissll_points_segment(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r,
-                                                                a0_t, m, True)
+    p_kt_2, nj_2, p_f_2, p_1_2, p_2_2, c_i_e_2 = get_waissll_points_segment(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r,a0_t, m, True)
+
     p_kt = np.empty((0, 3))
     nj = np.empty((0, 3))
     p_f = np.empty((0, 3))
@@ -375,20 +405,20 @@ def test_symetric_segment_geometry():
     p_2 = np.concatenate((p_2, p_2_2))
     nj = np.concatenate((nj, nj_2))
     c_i_e = np.concatenate((c_i_e, c_i_e_2))
-
+    plot_planform(p_kt,p_f,p_1,p_2)
     CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec= calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,c_i_e, sref, A,V_inf_vec)
-    L=0.5*rho*V_inf**2*CLa_vec*alpha*sref
+    L = 0.5*rho*V_inf**2*CLa_vec*alpha*sref
     D = 0.5*rho*V_inf**2*CDa2_vec*alpha**2*sref
-    FL = rho* np.cross(V_inf_vec,Gama_db_i_vec)
+    FL = rho * np.cross(V_inf_vec, Gama_db_i_vec)
     FD = rho * np.cross(w_i_vec, Gama_db_i_vec)
     FLsum = np.sum(FL,axis=0)
     FDsum = np.sum(FD, axis=0)
-    print('L =',L)
-    print('D =',D)
-    print('FL =', FLsum)
-    print('FL_norm =', np.linalg.norm(FLsum))
-    print('FD =', FDsum)
-    print('FD_norm =', np.linalg.norm(FDsum))
+    print('Lsym =', L)
+    print('Dsym =', D)
+    print('FLsym =', FLsum)
+    print('FL_sym =', np.linalg.norm(FLsum))
+    print('FDsym =', FDsum)
+    print('FD_sym =', np.linalg.norm(FDsum))
 
 if __name__ == "__main__":
     test_matlab_geometry()
