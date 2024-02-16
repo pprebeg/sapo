@@ -163,6 +163,7 @@ def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2, S, A,V_vec):
     b_i_e = get_unit_vector_mx3(np.cross(nj,c_i_e))
     dbi = np.einsum('ij,ij->i',p_2 - p_1, b_i_e)
     Gama_db_i_vec = np.einsum('i,ij->ij', Gama_i*dbi, Gama_i_e)
+    L_i_e = get_unit_vector_mx3(np.cross(V_vec,Gama_i_e))
 
 
 
@@ -195,21 +196,28 @@ def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2, S, A,V_vec):
     # Vectorization
     start_time = time.time()
     cond_LR =(p_1[:, np.newaxis, 1] + p_2[:, np.newaxis, 1]) * p_f[np.newaxis, :, 1] > 0
-    DV_vec = np.where(cond_LR[..., np.newaxis],
+    Dijk = np.where(cond_LR[..., np.newaxis],
                      vectorized_trag(p_1, p_2, p_f_vec),
                      vectorized_pivrtlog(p_1, p_2, p_f_vec))
-    DV_vec = np.einsum('ijk,j->ijk', DV_vec, G_vec)
+    DV_vec = np.einsum('ijk,j->ijk', Dijk, G_vec)
     D_vec = DV_vec[..., 2]
     g_vec = -(b / 2) * np.sum(D_vec, axis=1)
     sum = np.sum(g_vec * G)
     CDa2_vec = A * sum / m
     end_time = time.time()
+    #Kuta Joukowski induced drag
+    w_ijk=np.einsum('ijk,j->ijk', Dijk, Gama_i)
+    w_ij = w_ijk[..., 2]
+    w_i = np.sum(w_ij, axis=1)
+    w_i_e = - L_i_e
+    #D_i_e = get_unit_vector_mx3(np.cross(w_i_e,Gama_i_e))
+    w_i_vec = np.einsum('i,ij->ij', w_i, w_i_e)
     print("Time for vectorized version CDa2:{:.4f} seconds".format(end_time - start_time))
     print('CDa2_vec=', CDa2_vec)
     print('Test D_vec', np.allclose(D, D_vec, 1e-5))
     print('Test g_vec', np.allclose(g, g_vec, 1e-5))
     print('Test CDa2_vec', np.allclose(CDa2, CDa2_vec, 1e-5))
-    return CLa_vec,CDa2_vec,Gama_db_i_vec
+    return CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec
 
 def calc_CLa_CDa2(p_kt, nj, p_f, p_1, p_2,A,S,V_vec):
     m,_ =np.shape(p_kt)
@@ -270,20 +278,24 @@ def test_matlab_geometry():
     a0_r = 2*np.pi # NACA 2415, korijen krila
     a0_t = 2*np.pi # NACA 2408, vrh krila
     phei = 0 / 57.3  # dihedral
-    m= 80
+    m= 8
 
     sref = b*(c_r+c_t)/2.0
     A=b**2/sref
     p_kt, nj, p_f, p_1, p_2 = get_waissll_points_trapezoidal(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m,sym='none')
-    CLa_vec,CDa2_vec,Gama_db_i_vec= calc_tapered_wing(p_kt, nj, p_f, p_1, p_2, sref, A,V_inf_vec)
+    CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec= calc_tapered_wing(p_kt, nj, p_f, p_1, p_2, sref, A,V_inf_vec)
     L=0.5*rho*V_inf**2*CLa_vec*alpha*sref
     D = 0.5*rho*V_inf**2*CDa2_vec*alpha**2*sref
     FL = rho* np.cross(V_inf_vec,Gama_db_i_vec)
+    FD = rho * np.cross(w_i_vec, Gama_db_i_vec)
     FLsum = np.sum(FL,axis=0)
+    FDsum = np.sum(FD, axis=0)
     print('L =',L)
     print('D =',D)
     print('FL =', FLsum)
     print('FL_norm =', np.linalg.norm(FLsum))
+    print('FD =', FDsum)
+    print('FD_norm =', np.linalg.norm(FDsum))
 if __name__ == "__main__":
     test_matlab_geometry()
 
