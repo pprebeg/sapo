@@ -7,8 +7,7 @@ def get_unit_vector_mx3(vec):
     unit_vec = vec / np.linalg.norm(vec, axis=1)[:, np.newaxis]
     return unit_vec
 
-def get_waissll_points_segment(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t, m,sym=False,xrot_deg=0.0):
-    xrot = np.radians(xrot_deg)
+def get_waissll_geometry_segment(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t, m, sym=False, xrot=0.0):
     # Kontrolne tocke
     y_all_sym = np.linspace(0.0, b, m + 1)
     c_all = c0 - (c0 - ct) * np.abs(y_all_sym) /b
@@ -38,15 +37,16 @@ def get_waissll_points_segment(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_
 
     # Hvatiste sile:
     yf = ykt
-    cf = ckt
     xf = xkt - h
     zf = zkt
 
+    # Compact coordinates into point vectors
     p_kt = np.column_stack([xkt, ykt, zkt]) + p_0
     p_f = np.column_stack([xf, yf, zf]) + p_0
     p_1 = np.column_stack([x1, y1, z1]) + p_0
     p_2 = np.column_stack([x2, y2, z2]) + p_0
 
+    c_i = ckt
 
     if sym :
         sym_matrix = np.array([1, -1, 1])
@@ -56,20 +56,22 @@ def get_waissll_points_segment(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_
         p_2_sym = p_1*sym_matrix
         nj_sym = nj*sym_matrix
 
+
         p_kt = np.concatenate((p_kt_sym, p_kt))
         p_f = np.concatenate((p_f_sym, p_f))
         p_1 = np.concatenate((p_1_sym, p_1))
         p_2 = np.concatenate((p_2_sym, p_2))
         nj = np.concatenate((nj_sym,nj))
-        c_i_e = np.concatenate((c_i_e,c_i_e))
+        c_i_e = np.concatenate((c_i_e, c_i_e))
+        c_i = np.concatenate((c_i, c_i)) #chord
+
+    e_b_i = get_unit_vector_mx3(np.cross(nj,c_i_e))
+    db_i = np.einsum('ij,ij->i',p_2 - p_1, e_b_i)
 
     if not np.isclose(xrot,0.0) :
         pass # rotate
 
-
-
-
-    return p_kt, nj, p_f, p_1, p_2, c_i_e
+    return p_kt, nj, p_f, p_1, p_2, db_i,c_i
 
 def get_waissll_points_trapezoidal(b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t, m):
     # Kontrolne tocke
@@ -101,16 +103,20 @@ def get_waissll_points_trapezoidal(b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r
 
     # Hvatiste sile:
     yf = ykt
-    cf = ckt
     xf = xkt - h
     zf = zkt
+
+    c_i = ckt
 
     p_kt = np.column_stack([xkt, ykt, zkt])
     p_f = np.column_stack([xf, yf, zf])
     p_1 = np.column_stack([x1, y1, z1])
     p_2 = np.column_stack([x2, y2, z2])
 
-    return p_kt, nj, p_f, p_1, p_2, c_i_e
+    e_b_i = get_unit_vector_mx3(np.cross(nj, c_i_e))
+    db_i = np.einsum('ij,ij->i', p_2 - p_1, e_b_i)
+
+    return p_kt, nj, p_f, p_1, p_2, db_i,c_i
 
 def trag(p1, p2, pm):
     import numpy as np
@@ -173,7 +179,7 @@ def vectorized_trag(p1, p2, pm):
     B = (Vw2 - Vw1) / (4 * np.pi)
     return B
 
-def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,c_i_e, S, A,V_vec):
+def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,db_i, S, A,V_vec):
     m, _ = np.shape(p_kt)
     # import geometrija as ge
     # Determine unknown circulation distribution
@@ -209,9 +215,7 @@ def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,c_i_e, S, A,V_vec):
     rhs = np.einsum('j,ij->i', V_vec, nj)
     Gama_i = -np.linalg.solve(B_vec, rhs)
     Gama_i_e = get_unit_vector_mx3(np.cross(nj, V_vec))
-    b_i_e = get_unit_vector_mx3(np.cross(nj,c_i_e))
-    dbi = np.einsum('ij,ij->i',p_2 - p_1, b_i_e)
-    Gama_db_i_vec = np.einsum('i,ij->ij', Gama_i*dbi, Gama_i_e)
+    Gama_db_i_vec = np.einsum('i,ij->ij', Gama_i*db_i, Gama_i_e)
     L_i_e = get_unit_vector_mx3(np.cross(V_vec,Gama_i_e))
 
 
@@ -254,7 +258,7 @@ def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,c_i_e, S, A,V_vec):
     sum = np.sum(g_vec * G)
     CDa2_vec = A * sum / m
     end_time = time.time()
-    #Kuta Joukowski induced drag
+    #Kutta Joukowski induced drag
     w_ijk=np.einsum('ijk,j->ijk', Dijk, Gama_i)
     w_ij = w_ijk[..., 2]
     w_i = np.sum(w_ij, axis=1)
@@ -268,45 +272,37 @@ def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,c_i_e, S, A,V_vec):
     print('Test CDa2_vec', np.allclose(CDa2, CDa2_vec, 1e-5))
     return CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec
 
-def calc_CLa_CDa2(p_kt, nj, p_f, p_1, p_2,A,S,V_vec):
-    m,_ =np.shape(p_kt)
-    nj= nj / np.linalg.norm(nj, axis=1)[:, np.newaxis]
+def calc_joukowski_forces_weisinger_lifting_line(p_kt, nj, p_f, p_1, p_2,db_i,V_vec,rho):
+    m, _ = np.shape(p_kt)
     # Determine unknown circulation distribution
-    b = np.sqrt(A * S)
-    # Determine unknown circulation distribution
-    E = np.ones(m)
-    # Vectorization
     p_kt_vec = p_kt[:, np.newaxis, :]
     p_f_vec = p_f[:, np.newaxis, :]
     BV_vec = vectorized_pivrtlog(p_1, p_2, p_kt_vec)
     B_vec = np.einsum('ijk,ik->ij', BV_vec, nj)
-
-    G_vec = -np.linalg.solve(B_vec, E / (b / 2))
-    rhs=np.einsum('j,ij->i', V_vec, nj)
+    #Circulation Gama
+    rhs = np.einsum('j,ij->i', V_vec, nj)
     Gama_i = -np.linalg.solve(B_vec, rhs)
-    CLa_vec = A * np.sum(G_vec) / m
-    L_vec = np.cross(V_vec, np.cross(nj,V_vec))
-    L_unit_vec = L_vec / np.linalg.norm(L_vec, axis=1)[:, np.newaxis]
+    Gama_i_e = get_unit_vector_mx3(np.cross(nj, V_vec))
+    Gama_db_i_vec = np.einsum('i,ij->ij', Gama_i*db_i, Gama_i_e)
+    L_i_e = get_unit_vector_mx3(np.cross(V_vec,Gama_i_e))
 
-     # Vectorization
-    Dijk = vectorized_trag(p_1, p_2, p_f_vec)
-    DV_vec = np.einsum('ijk,j->ijk', Dijk, G_vec)
-    D_vec = DV_vec[..., 2]
-    g_vec = -(b / 2) * np.sum(D_vec, axis=1)
-    sum = np.sum(g_vec * G_vec)
-    CDa2_vec = A * sum / m
-
+    # Induced velocity w
+    cond_LR =(p_1[:, np.newaxis, 1] + p_2[:, np.newaxis, 1]) * p_f[np.newaxis, :, 1] > 0
+    Dijk = np.where(cond_LR[..., np.newaxis],
+                     vectorized_trag(p_1, p_2, p_f_vec),
+                     vectorized_pivrtlog(p_1, p_2, p_f_vec))
     w_ijk=np.einsum('ijk,j->ijk', Dijk, Gama_i)
     w_ij = w_ijk[..., 2]
     w_i = np.sum(w_ij, axis=1)
-    w_i_Gamai = w_i*Gama_i
+    e_w_i = - L_i_e
+    w_i_vec = np.einsum('i,ij->ij', w_i, e_w_i)
 
+    # Calculate Kutta Joukowski forces vector in each segment
 
+    L_i_vec = rho * np.cross(V_vec, Gama_db_i_vec)
+    D_i_vec = rho * np.cross(w_i_vec, Gama_db_i_vec)
 
-    ci = np.linalg.norm(p_kt-p_f,axis=1) #3/4c -1/4c = 1/2c
-    ci= ci*2.0 # not used
-    dbi = np.linalg.norm(p_2-p_1,axis=1) # ovo nije projekcija
-    return CLa_vec,CDa2_vec,Gama_i*dbi,w_i_Gamai*dbi,L_unit_vec
+    return L_i_vec, D_i_vec
 
 def plot_planform(p_kt, p_f, p_1, p_2):
     fig = plt.figure()
@@ -342,8 +338,8 @@ def test_matlab_geometry():
 
     sref = b*(c_r+c_t)/2.0
     A=b**2/sref
-    p_kt, nj, p_f, p_1, p_2,c_i_e = get_waissll_points_trapezoidal(b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m)
-    CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec= calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,c_i_e, sref, A,V_inf_vec)
+    p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i,c_i = get_waissll_points_trapezoidal(b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m)
+    CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec= calc_tapered_wing(p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i, sref, A,V_inf_vec)
     L=0.5*rho*V_inf**2*CLa_vec*alpha*sref
     D = 0.5*rho*V_inf**2*CDa2_vec*alpha**2*sref
     FL = rho* np.cross(V_inf_vec,Gama_db_i_vec)
@@ -356,6 +352,7 @@ def test_matlab_geometry():
     print('FL_norm =', np.linalg.norm(FLsum))
     print('FD =', FDsum)
     print('FD_norm =', np.linalg.norm(FDsum))
+
 
 def test_symetric_segment_geometry():
     alpha = 4/57.3
@@ -379,34 +376,24 @@ def test_symetric_segment_geometry():
 
     sref = b*(c_r+c_t)/2.0
     A = b**2/sref
-    p_kt_1, nj_1, p_f_1, p_1_1, p_2_1,c_i_e_1 = get_waissll_points_segment(p_0,b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m,True)
 
+
+    #First segent
+    p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i,c_i = get_waissll_geometry_segment(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m, True)
+    # Second segment
     p_0 = np.array([b*np.tan(L0), b, 0])
+    p_kt_i_, e_n_kt_i_, p_f_i_, p_1_i_, p_2_i_,db_i_,c_i_ = get_waissll_geometry_segment(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m, True)
 
-    p_kt_2, nj_2, p_f_2, p_1_2, p_2_2, c_i_e_2 = get_waissll_points_segment(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r,a0_t, m, True)
+    p_kt_i = np.concatenate((p_kt_i, p_kt_i_))
+    p_f_i = np.concatenate((p_f_i, p_f_i_))
+    p_1_i = np.concatenate((p_1_i, p_1_i_))
+    p_2_i = np.concatenate((p_2_i, p_2_i_))
+    e_n_kt_i = np.concatenate((e_n_kt_i, e_n_kt_i_))
+    db_i = np.concatenate((db_i, db_i_))
+    c_i = np.concatenate((c_i, c_i_))
 
-    p_kt = np.empty((0, 3))
-    nj = np.empty((0, 3))
-    p_f = np.empty((0, 3))
-    p_1 = np.empty((0, 3))
-    p_2 = np.empty((0, 3))
-    c_i_e = np.empty((0, 3))
-
-    p_kt = np.concatenate((p_kt, p_kt_1))
-    p_f = np.concatenate((p_f, p_f_1))
-    p_1 = np.concatenate((p_1, p_1_1))
-    p_2 = np.concatenate((p_2, p_2_1))
-    nj = np.concatenate((nj, nj_1))
-    c_i_e = np.concatenate((c_i_e, c_i_e_1))
-
-    p_kt = np.concatenate((p_kt, p_kt_2))
-    p_f = np.concatenate((p_f, p_f_2))
-    p_1 = np.concatenate((p_1, p_1_2))
-    p_2 = np.concatenate((p_2, p_2_2))
-    nj = np.concatenate((nj, nj_2))
-    c_i_e = np.concatenate((c_i_e, c_i_e_2))
-    plot_planform(p_kt,p_f,p_1,p_2)
-    CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec= calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,c_i_e, sref, A,V_inf_vec)
+    plot_planform(p_kt_i,p_f_i,p_1_i,p_2_i)
+    CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec= calc_tapered_wing(p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i, sref, A,V_inf_vec)
     L = 0.5*rho*V_inf**2*CLa_vec*alpha*sref
     D = 0.5*rho*V_inf**2*CDa2_vec*alpha**2*sref
     FL = rho * np.cross(V_inf_vec, Gama_db_i_vec)
@@ -419,7 +406,14 @@ def test_symetric_segment_geometry():
     print('FL_sym =', np.linalg.norm(FLsum))
     print('FDsym =', FDsum)
     print('FD_sym =', np.linalg.norm(FDsum))
-
+    print('calc_joukowski_forces_weisinger_lifting_line')
+    FL,FD = calc_joukowski_forces_weisinger_lifting_line(p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i, db_i, V_inf_vec,rho)
+    FLsum = np.sum(FL,axis=0)
+    FDsum = np.sum(FD, axis=0)
+    print('FL =', FLsum)
+    print('FL_norm =', np.linalg.norm(FLsum))
+    print('FD =', FDsum)
+    print('FD_norm =', np.linalg.norm(FDsum))
 if __name__ == "__main__":
     test_matlab_geometry()
     test_symetric_segment_geometry()

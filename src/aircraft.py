@@ -1,6 +1,6 @@
 from typing import List
 import numpy as np
-from src.waissll import get_waissll_points_trapezoidal, calc_CLa_CDa2
+from src.waissll import get_waissll_points_trapezoidal, calc_CLa_CDa2,get_waissll_geometry_segment
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from enum import Enum
@@ -230,11 +230,13 @@ class Segment:
     def p_0(self, value):
         self._p_0 = value
 
-    def get_waissll_points(self,m):
-        wll_pts = get_waissll_points_trapezoidal(
+    def get_waissll_geometry(self, m):
+        sym = False
+        xrot_rad = 0.0
+        wll_geo = get_waissll_geometry_segment(
             self._p_0, self._b, self._c0, self._ct, self._L0, self._alpha_pos,
-            self._i_r, self._i_t, self._phei, self._a_r, self._a_t, m)
-        return wll_pts
+            self._i_r, self._i_t, self._phei, self._a_r, self._a_t, m,sym,xrot_rad)
+        return wll_geo
 
     @property
     def Sref(self):
@@ -348,32 +350,34 @@ class LiftingBody:
     def segments(self):
         return self._segments
 
-    def get_waissll_points(self):
+    def get_waissll_geometry(self):
         m = self._m
-        p_kt = np.empty((0,3))
-        n_kt = np.empty((0, 3))
-        p_f = np.empty((0,3))
-        p_1 = np.empty((0,3))
-        p_2 = np.empty((0,3))
+        p_kt_i = np.empty((0,3))
+        e_n_kt_i = np.empty((0, 3))
+        p_f_i = np.empty((0,3))
+        p_1_i = np.empty((0,3))
+        p_2_i = np.empty((0,3))
+        e_c_i = np.empty((0, 3))
         for seg in self._segments:
-            seg_wll_pts = seg.get_waissll_points(m)
-            s_p_kt, s_nj, s_p_f, s_p_1, s_p_2 = seg_wll_pts
-            p_kt = np.concatenate((p_kt, s_p_kt))
-            p_f = np.concatenate((p_f, s_p_f))
-            p_1 = np.concatenate((p_1, s_p_1))
-            p_2 = np.concatenate((p_2, s_p_2))
-            n_kt = np.concatenate((n_kt, s_nj))
-        return p_kt, n_kt, p_f, p_1, p_2
+            seg_wll_geo = seg.get_waissll_geometry(m)
+            s_p_kt_i, s_e_n_kt_i, s_p_f_i, s_p_1_i, s_p_2_i,s_e_c_i = seg_wll_geo
+            p_kt_i = np.concatenate((p_kt_i, s_p_kt_i))
+            p_f_i = np.concatenate((p_f_i, s_p_f_i))
+            p_1_i = np.concatenate((p_1_i, s_p_1_i))
+            p_2_i = np.concatenate((p_2_i, s_p_2_i))
+            e_n_kt_i = np.concatenate((e_n_kt_i, s_e_n_kt_i))
+            e_c_i = np.concatenate((e_c_i, s_e_c_i))
+        return p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,e_c_i
 
     def calculate_CLa_CDa2(self):
-        p_kt, n_kt, p_f, p_1, p_2 = self.get_waissll_points()
+        p_kt, n_kt, p_f, p_1, p_2 = self.get_waissll_geometry()
         A = self.A
         S = self.Sref
         CLa,CDa2,Gama_i,w_i_Gamai,L_unit_vec = calc_CLa_CDa2(p_kt, n_kt, p_f, p_1, p_2,A,S,np.ones(3))
         return CLa,CDa2
 
     def calculate_discretized_forces(self,V_vec):
-        p_kt, n_kt, p_f, p_1, p_2 = self.get_waissll_points()
+        p_kt, n_kt, p_f, p_1, p_2 = self.get_waissll_geometry()
         A = self.A
         S = self.Sref
         CLa,CDa2,Gama_i,w_i_Gamai,L_unit_vec = calc_CLa_CDa2(p_kt, n_kt, p_f, p_1, p_2,A,S,V_vec)
@@ -381,7 +385,7 @@ class LiftingBody:
 
     def calculate_aero_forces(self,fc:FlightCondition):
         pass
-    
+
     @property
     def Sref(self):
         sref = 0.0
@@ -429,7 +433,6 @@ class LiftingBody:
         for seg in self.segments:
             CL0 += seg.CL_0*seg.Sref
         return CL0/self.Sref
-    def calculate_aero(self,fc):
 
 class Wing(LiftingBody):
     def __init__(self):
@@ -527,7 +530,7 @@ class Aircraft:
                 ax.add_collection3d(poly)
                 ax.plot(xplot[i], yplot[i], zplot[i], label=labelplot[i])
             if do_plot_wllp:
-                p_kt, n_kt, p_f, p_1, p_2 = self.wing.get_waissll_points()
+                p_kt, n_kt, p_f, p_1, p_2 = self.wing.get_waissll_geometry()
                 ax.plot(p_kt[:, 0], p_kt[:, 1], p_kt[:, 2],'+', label='kt')
                 ax.plot(p_f[:, 0], p_f[:, 1], p_f[:, 2],'.', label='f')
                 ax.plot(p_1[:, 0], p_1[:, 1], p_1[:, 2], '.', label='1')
