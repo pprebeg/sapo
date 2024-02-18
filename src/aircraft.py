@@ -230,9 +230,11 @@ class FlightCondition:
         return Re
 
     def get_info(self):
-        msg = '\tVcr = {0:.2f} m/s; h = {1:.0f} m; alpha = {2:.2f} '.format(self._V_inf, self._h_m, self._alpha_deg)
+        msg = '\tVcr = {0:.2f} m/s; h = {1:.0f} m; alpha = {2:.2f}\n'.format(self._V_inf, self._h_m, self._alpha_deg)
         if not self.forces.is_empty:
             msg+= self.forces.get_info()
+            msg+= '\tLift and drag coefficients: CL = {0:.3f}; CD = {1:.4f}; CL/CD = {2:.2f}; CL(3/2)/CD = {3:.2f}\n'.format(
+                self.get_CL(),self.get_CD(),self.get_CL_CD_ratio(),self.get_CL_3_2_CD_ratio())
         else:
             msg+='\n'
         return msg

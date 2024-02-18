@@ -51,6 +51,7 @@ def get_verification_aircraft_aerodyn_class_two_segments():
 
 
 def get_test_survailance_uav_one_segment():
+    zero_angle = 1e-6
     a = ac.Aircraft('Survailance UAV')
     #Prepare wing
     wing = ac.Wing('wing')
@@ -73,8 +74,13 @@ def get_test_survailance_uav_one_segment():
     all_other = ac.FixedComponent('All_other_parts',6.5)
     a.add_component(all_other)
     # Add Flight conditions
+    alpha = zero_angle
+    V_inf = 12
+    fc = ac.FlightCondition(V_inf,0.0,alpha)
+    a.add_flight_condition(fc)
+    # Add Flight conditions
     alpha = 2
     V_inf = 14
-    fc = ac.FlightCondition(V_inf,0.0,alpha)
+    fc = ac.FlightCondition(V_inf, 0.0, alpha)
     a.add_flight_condition(fc)
     return a
