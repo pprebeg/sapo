@@ -51,6 +51,18 @@ class ForcesAndMoments:
         self._force_locations:Dict[str,np.ndarray]  = {}
         self._moment_vectors:Dict[str,np.ndarray]  = {}
 
+    @property
+    def is_empty(self):
+        return (self.num_force_vectors == 0 and self.num_moment_vectors == 0)
+
+    @property
+    def num_force_vectors(self):
+        return len(self._force_vectors)
+
+    @property
+    def num_moment_vectors(self):
+        return len(self._moment_vectors)
+
     def clear_all(self):
         self._force_vectors.clear()
         self._force_types.clear()
@@ -64,7 +76,7 @@ class ForcesAndMoments:
         self._force_location_keys[key] = location_key
 
     def add_scalar_weight(self, key:str,weight:float,location:np.ndarray):
-        weight_vec = np.array([0.0,0.0,weight])
+        weight_vec = np.array([[0.0,0.0,- weight]])
         self._force_vectors[key] = weight_vec
         self._force_types[key] = ForceType.INERTIA
         self._force_location_keys[key] = key
@@ -105,13 +117,26 @@ class ForcesAndMoments:
     def _get_total_sum_in_direction(self,dir):
         fdir = 0.0
         for key in self._force_vectors.keys():
-            f = self.get_force_vector_sum_norm(key)
+            f = self.get_force_vector_sum(key)
             fdir+= f[dir]
         return fdir
 
     def get_total_sum_in_z(self):
         fz= self._get_total_sum_in_direction(2)
         return fz
+
+    def get_info(self):
+        np.set_printoptions(precision=3)
+        msg = '\tForce vectors:{0}; Moment vectors:{1} \n'.format(self.num_force_vectors, self.num_moment_vectors)
+        if self.num_force_vectors > 0:
+            msg+= '\tForce vectors:\n'
+        for key,force in self._force_vectors.items():
+            msg+= '\t\t{0}, {1}, num vectors: {2}, vector sum: {3}, resultant: {4:.2f} \n'.format(
+                key,str(self._force_types[key]),len(force),self.get_force_vector_sum(key),self.get_force_vector_sum_norm(key))
+        msg +='\t\t------------------------------------------------------------------------------------\n'
+        msg += '\t\tTotal sum in directions: x:{0:.3f}, y:{1:.3f},z: {2:.3f}\n'.format(
+            self._get_total_sum_in_direction(0),self._get_total_sum_in_direction(1),self._get_total_sum_in_direction(2))
+        return msg
 
 
 class FlightCondition:
@@ -129,6 +154,7 @@ class FlightCondition:
         self._forces_Sref = 0.0
 
     #region Get Set properties
+
     @property
     def forces_Sref(self):
         return self._forces_Sref
@@ -204,7 +230,11 @@ class FlightCondition:
         return Re
 
     def get_info(self):
-        msg = 'FC: Vcr = {0:.2f} m/s; h = {1:.0f} m; alpha = {2:.2f} °; '.format(self._V_inf, self._h_m, self._alpha_deg)
+        msg = '\tVcr = {0:.2f} m/s; h = {1:.0f} m; alpha = {2:.2f} '.format(self._V_inf, self._h_m, self._alpha_deg)
+        if not self.forces.is_empty:
+            msg+= self.forces.get_info()
+        else:
+            msg+='\n'
         return msg
 
     def get_CL(self):
@@ -242,18 +272,22 @@ class Segment:
         self._dihedral = dihedral
         self._num_vll_seg = num_vll_seg
         if naca_r == 'PLATE':
-            self._cl0_r, self._a_r, self._lw_c_r = (0.0, 2*np.pi,2.0)
+            self._cl0_r, self._a_r, self._lw_c_r,t_c_max_r = (0.0, 2*np.pi,2.0,0.0)
         else:
-            self._cl0_r, self._a_r, self._lw_c_r = get_naca_4_5_airfoils_data(naca_r,50)
+            self._cl0_r, self._a_r, self._lw_c_r,t_c_max_r = get_naca_4_5_airfoils_data(naca_r,50)
         if naca_t == 'PLATE':
-            self._cl0_t, self._a_t, self._lw_c_t = (0.0, 2*np.pi,2.0)
+            self._cl0_t, self._a_t, self._lw_c_t,t_c_max_t = (0.0, 2*np.pi,2.0,0.0)
         else:
-            self._cl0_t, self._a_t, self._lw_c_t = get_naca_4_5_airfoils_data(naca_t,50)
+            self._cl0_t, self._a_t, self._lw_c_t,t_c_max_t = get_naca_4_5_airfoils_data(naca_t,50)
+        self._t_c_max = max(t_c_max_r,t_c_max_t)
         self._p_0 = p_0
         self._sym = sym
         self._xrot = 0.0
 
     #region Get only properties
+    @property
+    def sym(self):
+        return self._sym
     @property
     def lw_c_r(self):
         return self._lw_c_r
@@ -282,6 +316,20 @@ class Segment:
     @property
     def taper(self):
         return self._c_t / self._c_r
+
+    @property
+    def t_c_max(self):
+        return self._t_c_max
+
+    @property
+    def sweep_025(self):
+        y=self.b*(self.c_r+2*self.c_t)/(3*(self.c_r+self.c_t))
+        return np.degrees(np.arctan(np.tan(np.radians(self.sweep_le)) - 4 * y / self.b * (1 - y / self.b)))
+
+    @property
+    def mac(self):
+        la = self.taper
+        return 2/3*self.c_r*(1+la+la**2)/(1+la)
 
     #endregion
 
@@ -312,11 +360,11 @@ class Segment:
         self._c_t = value
 
     @property
-    def sweep_LE(self):
+    def sweep_le(self):
         return self._sweep_le
 
-    @sweep_LE.setter
-    def sweep_LE(self, value):
+    @sweep_le.setter
+    def sweep_le(self, value):
         self._sweep_le = value
 
     @property
@@ -465,7 +513,7 @@ class AircraftComponent():
         return np.zeros(3)
 
     def get_info(self):
-        msg = 'uid: {0}'.format(self.uid)
+        msg = '\tuid: {0}\n'.format(self.uid)
         return msg
     #endregion
 
@@ -498,7 +546,10 @@ class LiftingBody(AircraftComponent):
     def Sref(self):
         sref = 0.0
         for seg in self._segments:
-            srefi = seg.Sref
+            if seg.sym == Symmetry.NO_SYMMETRY:
+                srefi = seg.Sref
+            else:
+                srefi = 2*seg.Sref
             sref+= srefi
         return sref
 
@@ -511,8 +562,53 @@ class LiftingBody(AircraftComponent):
         bb = 0.0
         for seg in self._segments:
             bi = seg.b
-            bb += bi
+            if seg.sym == Symmetry.NO_SYMMETRY:
+                bb += bi
+            else:
+                bb += 2*bi
         return bb
+
+    @property
+    def c_r(self):
+        cr = self._segments[0].c_r
+        return cr
+
+    @property
+    def c_t(self):
+        ct = self._segments[-1].c_t
+        return ct
+
+    @property
+    def t_c_max(self):
+        t_c_max = 0.0
+        for seg in self._segments:
+            t_c_max = max(t_c_max,seg.t_c_max)
+        return t_c_max
+
+    @property
+    def taper(self):
+        return self.c_t / self.c_r
+
+    @property
+    def sweep_le(self):
+        sweep = 0.0
+        for seg in self._segments:
+            sweepi = seg.sweep_le * seg.Sref
+            sweep += sweepi
+        return sweep/self.Sref
+
+    @property
+    def sweep_025(self):
+        b=self.b
+        c_r = self.c_r
+        c_t = self.c_t
+        y = self.b * (c_r + 2 * c_t) / (3 * (c_r + c_t))
+        return np.degrees(np.arctan(np.tan(np.radians(self.sweep_le)) - 4 * y / b * (1 - y / b)))
+
+    @property
+    def mac(self):
+        la = self.taper
+        return 2 / 3 * self.c_r * (1 + la + la ** 2) / (1 + la)
 
     @property
     def num_segments(self):
@@ -566,8 +662,8 @@ class LiftingBody(AircraftComponent):
             Re_i_r = fc.calc_reynolds(seg.c_r)
             Re_i_t = fc.calc_reynolds(seg.c_t)
             lambd=seg.c_t/seg.c_r
-            s_cd0_r = calc_friction_drag_constant(Re_i_r, fc.Ma, seg.c_r, lambd, seg.sweep_LE, seg.lw_c_r)
-            s_cd0_t = calc_friction_drag_constant(Re_i_t, fc.Ma, seg.c_t, lambd, seg.sweep_LE, seg.lw_c_t)
+            s_cd0_r = calc_friction_drag_constant(Re_i_r, fc.Ma, seg.c_r, lambd, seg.sweep_le, seg.lw_c_r)
+            s_cd0_t = calc_friction_drag_constant(Re_i_t, fc.Ma, seg.c_t, lambd, seg.sweep_le, seg.lw_c_t)
             s_cd0_i = get_quantity_distribution_across_x(s_cd0_r, s_cd0_t, seg.c_r, seg.c_t, s_c_i)
             cd0_i = np.concatenate((cd0_i, s_cd0_i))
         return p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i,c_i,cl0_i,cd0_i
@@ -596,7 +692,7 @@ class LiftingBody(AircraftComponent):
 
     #region Info Functions
     def get_info(self):
-        msg = 'uid: {0}; num segments: {1}'.format(self.uid,self.num_segments)
+        msg = '\tuid: {0}; num segments: {1}\n'.format(self.uid,self.num_segments)
         return msg
     #endregion
 
@@ -605,19 +701,20 @@ class LiftingBody(AircraftComponent):
 class Wing(LiftingBody):
     def __init__(self, uid):
         super().__init__(uid)
+        self._hms_mass_data = None
+
+    def set_mass_calc_data(self,rho_mat,n_ult, Kp):
+        self._hms_mass_data = (rho_mat,n_ult, Kp)
 
     #region Overloaded Functions
     def calc_mass(self):
-        Sw = 0.0
-        c_mac = 0.0
-        t_c_max = 0.0
-        rho_mat = 0.0
-        Kp = 0.0
-        AR = 0.0
-        n_ult = 0.0
-        L_1_4 = 0.0
-        lambd = 0.0
-        mass = wing_mass_MHS(Sw, c_mac, t_c_max, rho_mat, Kp, AR, n_ult, L_1_4, lambd)
+        if self._hms_mass_data is None:
+            return 0.0
+        else:
+            rho_mat, n_ult, Kp = self._hms_mass_data
+            mass = wing_mass_MHS(self.Sref, self.mac, self.t_c_max, rho_mat, Kp, self.A, n_ult,
+                                 np.radians(self.sweep_025), self.taper)
+            return mass
         return mass
 
     def calc_CG(self):
@@ -705,14 +802,14 @@ class Aircraft:
 
     def calculate_aero_forces(self):
         for fc in self._flight_conditions:
-            for l_body in self.lifting_components:
+            for l_body in self.lifting_components.values():
                 l_body.calculate_and_set_aero_forces(fc)
                 if isinstance(l_body,Wing):
-                    fc.forces_Sref = self.l_body.Sref
+                    fc.forces_Sref = l_body.Sref
 
     def calculate_inertia_forces(self):
         for fc in self._flight_conditions:
-            for component in self.components:
+            for component in self.components.values():
                 component.calculate_and_set_inertia_forces(fc)
 
     #endregion
@@ -723,10 +820,12 @@ class Aircraft:
         msg += 'Num Components: {0}, Num Flight Conditions {1}'.format(self.num_comp,self.num_flight_cond) + '\n'
         msg += 'Components:' + '\n'
         for comp in self.components.values():
-            msg += comp.get_info()+'\n'
+            msg += comp.get_info()
         msg += 'Flight Conditions:' + '\n'
+        iseg=1
         for fc in self.flight_conditions:
-            msg += fc.get_info()+'\n'
+            msg += '\t{0}'.format(iseg)+fc.get_info()
+            iseg+=1
         return msg
 
     def plot_planform(self,do_plot_wllp = True):

@@ -1,5 +1,4 @@
 import numpy as np
-from src.panel import get_naca_4_5_airfoils_data
 
 def calc_reynolds(mu, rho_h, c_m, V_inf):
     Re = rho_h * V_inf * c_m / mu

@@ -124,6 +124,12 @@ def panel(naca_4_5_code, alfa, n):
     m = n * 2  # ukupni broj segmenata na profilu
     # Profil
 
+    # identify max thickness from nacacode
+    if len(naca_4_5_code) == 5:
+        t_c_max = float(naca_4_5_code[3:5])/100
+    else:
+        t_c_max = float(naca_4_5_code[3:5]) / 100
+
     #xk, zk = naca_4_5_code(2, 4, 8, n)  # Implementirajte funkciju naca4
     xk, zk =get_points_for_CPACS_NACA_4_5(naca_4_5_code,n)
     # Priprema varijabli
@@ -185,13 +191,13 @@ def panel(naca_4_5_code, alfa, n):
     cx = - np.sum(dfx)
     cl = cz * np.cos(alfa) - cx * np.sin(alfa)
     lw_c = np.sum(S)
-    return cl, lw_c
+    return cl, lw_c,t_c_max
 
 def get_naca_4_5_airfoils_data(naca_4_5_code,n):
-    cl0,lw_c = panel(naca_4_5_code,0,n)
-    cl4, lw_c = panel(naca_4_5_code, np.radians(4), n)
+    cl0,lw_c,t_c_max = panel(naca_4_5_code,0,n)
+    cl4, lw_c,t_c_max = panel(naca_4_5_code, np.radians(4), n)
     a = (cl4-cl0)/(np.radians(4))
-    return cl0,a,lw_c
+    return cl0,a,lw_c,t_c_max
 def plot_airfoils(airfoils, show_points):
     h = []
     label = []
@@ -223,7 +229,7 @@ if __name__ == "__main__":
     #airfoils[naca_4_5_code] = [xk, zk, naca_4_5_code, "NACA 4 digit airfoil with halfcosine spacing between points"]
     plot_airfoils(airfoils,True)
     alpha=8
-    cl =panel('2408',alpha/57.3,50)
+    cl,lw_c,t_c_max =panel('2408',alpha/57.3,50)
     #print('Gp =', Gp)
     #print('Cp = ', Cp)
 

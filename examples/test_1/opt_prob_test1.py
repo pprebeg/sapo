@@ -69,7 +69,7 @@ class Aircraft_OptProb(OptimizationProblem):
             self.add_design_variable(DesignVariable('xc0_ws_{}'.format(iws), ws_c0_con, .01, 7.0))
             ws_ct_con = CallbackPropertyGetSetConnector(seg, Segment.c_t)
             self.add_design_variable(DesignVariable('xct_ws_{}'.format(iws), ws_ct_con, 0.01, 6.0))
-            ws_L0_con = CallbackPropertyGetSetConnector(seg, Segment.sweep_LE)
+            ws_L0_con = CallbackPropertyGetSetConnector(seg, Segment.sweep_le)
             self.add_design_variable(DesignVariable('xL0_ws_{}'.format(iws), ws_L0_con, 5/57.3, 60/57.3))
             ws_alpha_pos_con = CallbackPropertyGetSetConnector(seg, Segment.alpha_pos)
             self.add_design_variable(DesignVariable('xalpha_pos_ws_{}'.format(iws), ws_alpha_pos_con, 0.01 / 57.3, 20/57.3))
