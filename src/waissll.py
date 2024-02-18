@@ -1,13 +1,22 @@
+import nt
+
 import numpy as np
 import time
-import matplotlib.pyplot as plt
+
 
 
 def get_unit_vector_mx3(vec):
     unit_vec = vec / np.linalg.norm(vec, axis=1)[:, np.newaxis]
     return unit_vec
 
-def get_waissll_geometry_segment(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t, m, sym=False, xrot=0.0):
+def get_quantity_distribution_across_x(q_r,q_t,x_r,x_t,x):
+    if np.isclose(q_t,q_r) or np.isclose(x_t,x_r):
+        q= np.full_like(x,q_r)
+    else:
+        q= (q_t-q_r)/(x_t-x_r)*x + q_r
+    return q
+
+def get_waissll_geometry_segment(p_0, b, c0, ct, L0,i_r, i_t, phei, a_r, a_t, m, sym=False, xrot=0.0):
     # Kontrolne tocke
     y_all_sym = np.linspace(0.0, b, m + 1)
     c_all = c0 - (c0 - ct) * np.abs(y_all_sym) /b
@@ -30,7 +39,7 @@ def get_waissll_geometry_segment(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, 
     xkt = 0.25 * ckt + h + np.abs(ykt) * np.tan(L0)
     zkt = np.abs(ykt) * np.tan(phei)
     i = ykt * (i_t - i_r) / b + i_r
-    nj = np.column_stack([np.sin(i + alpha_pos), np.ones(m) * (-np.sin(phei)), np.cos(i + alpha_pos) + np.cos(phei)])
+    nj = np.column_stack([np.sin(i), np.ones(m) * (-np.sin(phei)), np.cos(i) + np.cos(phei)])
     nj = get_unit_vector_mx3(nj)
     c_i = np.column_stack([np.cos(i), np.zeros(m), np.sin(i)])
     c_i_e = get_unit_vector_mx3(c_i)
@@ -73,7 +82,7 @@ def get_waissll_geometry_segment(p_0, b, c0, ct, L0, alpha_pos, i_r, i_t, phei, 
 
     return p_kt, nj, p_f, p_1, p_2, db_i,c_i
 
-def get_waissll_points_trapezoidal(b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r, a_t, m):
+def get_waissll_points_trapezoidal(b, c0, ct, L0, i_r, i_t, phei, a_r, a_t, m):
     # Kontrolne tocke
     y_all = np.linspace(-b / 2, b / 2, m + 1)
     c_all = c0 - (c0 - ct) * np.abs(y_all) / (b / 2)
@@ -96,7 +105,7 @@ def get_waissll_points_trapezoidal(b, c0, ct, L0, alpha_pos, i_r, i_t, phei, a_r
     xkt = 0.25 * ckt + h + np.abs(ykt) * np.tan(L0)
     zkt = np.abs(ykt) * np.tan(phei)
     i = 2 * ykt * (i_t - i_r) / b + i_r
-    nj = np.column_stack([np.sin(i + alpha_pos), np.ones(m) * (-np.sin(phei)), np.cos(i + alpha_pos) + np.cos(phei)])
+    nj = np.column_stack([np.sin(i), np.ones(m) * (-np.sin(phei)), np.cos(i) + np.cos(phei)])
     nj = get_unit_vector_mx3(nj)
     c_i = np.column_stack([np.cos(i), np.zeros(m), np.sin(i)])
     c_i_e = get_unit_vector_mx3(c_i)
@@ -272,7 +281,7 @@ def calc_tapered_wing(p_kt, nj, p_f, p_1, p_2,db_i, S, A,V_vec):
     print('Test CDa2_vec', np.allclose(CDa2, CDa2_vec, 1e-5))
     return CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec
 
-def calc_joukowski_forces_weisinger_lifting_line(p_kt, nj, p_f, p_1, p_2,db_i,V_vec,rho):
+def calc_joukowski_forces_weissinger_lifting_line(p_kt, nj, p_f, p_1, p_2, db_i, V_vec, rho):
     m, _ = np.shape(p_kt)
     # Determine unknown circulation distribution
     p_kt_vec = p_kt[:, np.newaxis, :]
@@ -305,6 +314,7 @@ def calc_joukowski_forces_weisinger_lifting_line(p_kt, nj, p_f, p_1, p_2,db_i,V_
     return L_i_vec, D_i_vec
 
 def plot_planform(p_kt, p_f, p_1, p_2):
+    import matplotlib.pyplot as plt
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
     ax.plot(p_kt[:, 0], p_kt[:, 1], p_kt[:, 2],'+', label='kt')
@@ -316,6 +326,7 @@ def plot_planform(p_kt, p_f, p_1, p_2):
     ax.set_zlabel('z, m')
     ax.legend()
     plt.show()
+
 def test_matlab_geometry():
     alpha = 4/57.3
     V_inf = 15
@@ -328,9 +339,8 @@ def test_matlab_geometry():
     c_r = 2.0  # root chord
     c_t = 2.0  # tip chord
     L0 = 45/ 57.3
-    alpha_pos = 0 / 57.3  # postavni kut krila
-    i_r = 0 / 57.3  # kut uvijanja u korjenu krila
-    i_t = 0 / 57.3  # kut uvijanja u vrhu krila
+    i_r = 0 / 57.3  # postavni kut u korjenu krila
+    i_t = 0 / 57.3  # postavni kut u vrhu krila
     a0_r = 2*np.pi # NACA 2415, korijen krila
     a0_t = 2*np.pi # NACA 2408, vrh krila
     phei = 0 / 57.3  # dihedral
@@ -338,7 +348,7 @@ def test_matlab_geometry():
 
     sref = b*(c_r+c_t)/2.0
     A=b**2/sref
-    p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i,c_i = get_waissll_points_trapezoidal(b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m)
+    p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i,c_i = get_waissll_points_trapezoidal(b, c_r, c_t, L0, i_r, i_t, phei, a0_r, a0_t, m)
     CLa_vec,CDa2_vec,Gama_db_i_vec,w_i_vec= calc_tapered_wing(p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i, sref, A,V_inf_vec)
     L=0.5*rho*V_inf**2*CLa_vec*alpha*sref
     D = 0.5*rho*V_inf**2*CDa2_vec*alpha**2*sref
@@ -366,23 +376,22 @@ def test_symetric_segment_geometry():
     c_r = 2.0  # root chord
     c_t = 2.0  # tip chord
     L0 = 45/ 57.3
-    alpha_pos = 0 / 57.3  # postavni kut krila
-    i_r = 0 / 57.3  # kut uvijanja u korjenu krila
-    i_t = 0 / 57.3  # kut uvijanja u vrhu krila
+    i_r = 0 / 57.3  # postavni kut u korjenu krila
+    i_t = 0 / 57.3  # postavni kut u vrhu krila
     a0_r = 2*np.pi  # NACA 2415, korijen krila
     a0_t = 2*np.pi  # NACA 2408, vrh krila
     phei = 0 / 57.3  # dihedral
-    m = 2
+    m = 40
 
     sref = b*(c_r+c_t)/2.0
     A = b**2/sref
 
 
     #First segent
-    p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i,c_i = get_waissll_geometry_segment(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m, True)
+    p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i,c_i = get_waissll_geometry_segment(p_0, b, c_r, c_t, L0, i_r, i_t, phei, a0_r, a0_t, m, True)
     # Second segment
     p_0 = np.array([b*np.tan(L0), b, 0])
-    p_kt_i_, e_n_kt_i_, p_f_i_, p_1_i_, p_2_i_,db_i_,c_i_ = get_waissll_geometry_segment(p_0, b, c_r, c_t, L0, alpha_pos, i_r, i_t, phei, a0_r, a0_t, m, True)
+    p_kt_i_, e_n_kt_i_, p_f_i_, p_1_i_, p_2_i_,db_i_,c_i_ = get_waissll_geometry_segment(p_0, b, c_r, c_t, L0, i_r, i_t, phei, a0_r, a0_t, m, True)
 
     p_kt_i = np.concatenate((p_kt_i, p_kt_i_))
     p_f_i = np.concatenate((p_f_i, p_f_i_))
@@ -407,13 +416,15 @@ def test_symetric_segment_geometry():
     print('FDsym =', FDsum)
     print('FD_sym =', np.linalg.norm(FDsum))
     print('calc_joukowski_forces_weisinger_lifting_line')
-    FL,FD = calc_joukowski_forces_weisinger_lifting_line(p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i, db_i, V_inf_vec,rho)
+    FL,FD = calc_joukowski_forces_weissinger_lifting_line(p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i, db_i, V_inf_vec, rho)
     FLsum = np.sum(FL,axis=0)
     FDsum = np.sum(FD, axis=0)
     print('FL =', FLsum)
     print('FL_norm =', np.linalg.norm(FLsum))
     print('FD =', FDsum)
     print('FD_norm =', np.linalg.norm(FDsum))
+
+
 if __name__ == "__main__":
     test_matlab_geometry()
     test_symetric_segment_geometry()

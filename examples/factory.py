@@ -1,0 +1,50 @@
+import src.aircraft as ac
+
+def get_verification_aircraft_aerodyn_class_one_segment():
+    a = ac.Aircraft('Verification_1')
+    #Prepare wing
+    wing = ac.Wing('wing')
+    #prepare wing segments
+    alpha = 4
+    V_inf = 15
+    b = 5 # each segment
+    c_r = 2.0  # root chord
+    c_t = 2.0  # tip chord
+    sweep_LE = 45.0
+    i_r = 0.0  # kut uvijanja u korjenu krila
+    i_t = 0.0  # kut uvijanja u vrhu krila
+    dihedral = 0.0# dihedral
+    seg = ac.Segment(b,c_r,c_t,sweep_LE,i_r,i_t,dihedral,'PLATE','PLATE',sym=ac.Symmetry.X_Z_PLANE)
+    wing.add_segment(seg)
+    a.add_component(wing)
+    # Add Flight conditions
+    fc = ac.FlightCondition(V_inf,0.0,alpha)
+    a.add_flight_condition(fc)
+    return a
+
+def get_verification_aircraft_aerodyn_class_two_segments():
+    a = ac.Aircraft('Verification_2')
+    #Prepare wing
+    wing = ac.Wing('wing')
+    #prepare wing segments
+    alpha = 4
+    V_inf = 15
+    b = 2.5 # each segment
+    c_r = 2.0  # root chord
+    c_t = 2.0  # tip chord
+    sweep_LE = 45.0
+    i_r = 0.0  # kut uvijanja u korjenu krila
+    i_t = 0.0  # kut uvijanja u vrhu krila
+    dihedral = 0.0# dihedral
+    # First segment
+    seg = ac.Segment(b,c_r,c_t,sweep_LE,i_r,i_t,dihedral,'PLATE','PLATE',sym=ac.Symmetry.X_Z_PLANE)
+    wing.add_segment(seg)
+    # Second segment
+    seg = ac.Segment(b, c_r, c_t, sweep_LE, i_r, i_t, dihedral, 'PLATE', 'PLATE', sym=ac.Symmetry.X_Z_PLANE)
+    wing.add_segment(seg)
+    wing.enforce_segments_LE_connection()
+    a.add_component(wing)
+    # Add Flight conditions
+    fc = ac.FlightCondition(V_inf,0.0,alpha)
+    a.add_flight_condition(fc)
+    return a

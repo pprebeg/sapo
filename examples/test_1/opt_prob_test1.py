@@ -37,7 +37,7 @@ class Aircraft_AnMod(AnalysisExecutor):
 
     def analyze(self):
         pass
-        self._ac.run_aero()
+        self._ac.calculate_aero_forces()
         return AnalysisResultType.OK
 
     def objfun_drag(self):
@@ -65,19 +65,19 @@ class Aircraft_OptProb(OptimizationProblem):
             iws+=1
             ws_b_con = CallbackPropertyGetSetConnector(seg,Segment.b)
             self.add_design_variable(DesignVariable('xb_ws_{}'.format(iws), ws_b_con, 1.0, 15.0))
-            ws_c0_con = CallbackPropertyGetSetConnector(seg, Segment.c0)
+            ws_c0_con = CallbackPropertyGetSetConnector(seg, Segment.c_r)
             self.add_design_variable(DesignVariable('xc0_ws_{}'.format(iws), ws_c0_con, .01, 7.0))
-            ws_ct_con = CallbackPropertyGetSetConnector(seg, Segment.ct)
+            ws_ct_con = CallbackPropertyGetSetConnector(seg, Segment.c_t)
             self.add_design_variable(DesignVariable('xct_ws_{}'.format(iws), ws_ct_con, 0.01, 6.0))
-            ws_L0_con = CallbackPropertyGetSetConnector(seg, Segment.L0)
+            ws_L0_con = CallbackPropertyGetSetConnector(seg, Segment.sweep_LE)
             self.add_design_variable(DesignVariable('xL0_ws_{}'.format(iws), ws_L0_con, 5/57.3, 60/57.3))
             ws_alpha_pos_con = CallbackPropertyGetSetConnector(seg, Segment.alpha_pos)
             self.add_design_variable(DesignVariable('xalpha_pos_ws_{}'.format(iws), ws_alpha_pos_con, 0.01 / 57.3, 20/57.3))
-            ws_i_r_con = CallbackPropertyGetSetConnector(seg, Segment.i_r)
+            ws_i_r_con = CallbackPropertyGetSetConnector(seg, Segment.incidence_r)
             self.add_design_variable(DesignVariable('xi_rws_{}'.format(iws), ws_i_r_con, -2 / 57.3, 7 / 57.3))
-            ws_i_t_con = CallbackPropertyGetSetConnector(seg, Segment.i_t)
+            ws_i_t_con = CallbackPropertyGetSetConnector(seg, Segment.incidence_t)
             self.add_design_variable(DesignVariable('xi_t_ws_{}'.format(iws), ws_i_t_con, 0/ 57.3, 15 / 57.3))
-            ws_phei_con = CallbackPropertyGetSetConnector(seg, Segment.phei)
+            ws_phei_con = CallbackPropertyGetSetConnector(seg, Segment.dihedral)
             self.add_design_variable(DesignVariable('xphei_{}'.format(iws), ws_phei_con, 0.01 / 57.3, 20 / 57.3))
         objd = CallbackGetConnector(am.objfun_drag)
         self.add_objective(DesignObjective('obj', objd))
