@@ -25,6 +25,13 @@ class ForceType(Enum):
     INERTIA = 4
     OTHER = 0
 
+class CL0_AproxType(Enum):
+    NONE = 1
+    NACA_PANEL = 2
+
+class CD0_AproxType(Enum):
+    NONE = 1
+    ADAPDT = 2
 
 def get_min_max(numList, inMin = None, inMax = None):
     if inMin == None:
@@ -587,8 +594,18 @@ class LiftingBody(AircraftComponent):
     def __init__(self,uid):
         super().__init__(uid)
         self._segments:List[Segment] = []
+        self._cl0_aprox_type = CL0_AproxType.NONE
+        self._cd0_aprox_type = CD0_AproxType.NONE
 
     #region Get only properties
+
+    @property
+    def cl0_aprox_type(self):
+        return self._cl0_aprox_type
+
+    @property
+    def cd0_aprox_type(self):
+        return self._cd0_aprox_type
 
     @property
     def segments(self):
@@ -681,6 +698,10 @@ class LiftingBody(AircraftComponent):
             if p_t_LE is not None:
                 seg.p_0 = p_t_LE
             p_t_LE = seg.get_segment_tip_LE_p()
+
+    def set_cl0_cd0_aprox_types(self,cl0_aprox_type,cd0_aprox_type):
+        self._cl0_aprox_type = cl0_aprox_type
+        self._cd0_aprox_type = cd0_aprox_type
     #endregion
 
     #region Calculation Functions
@@ -708,34 +729,44 @@ class LiftingBody(AircraftComponent):
             c_i = np.concatenate((c_i, s_c_i))
             #aero
             ##lift
-            s_cl0_i = get_quantity_distribution_across_x(seg.cl0_r,seg.cl0_t,seg.c_r,seg.c_t,s_c_i)
-            cl0_i = np.concatenate((cl0_i, s_cl0_i))
+            if self.cl0_aprox_type == CL0_AproxType.NACA_PANEL:
+                s_cl0_i = get_quantity_distribution_across_x(seg.cl0_r,seg.cl0_t,seg.c_r,seg.c_t,s_c_i)
+                cl0_i = np.concatenate((cl0_i, s_cl0_i))
+            else:
+                cl0_i = None
             ##drag
-            Re_i_r = fc.calc_reynolds(seg.c_r)
-            Re_i_t = fc.calc_reynolds(seg.c_t)
-            lambd=seg.c_t/seg.c_r
-            s_cd0_r = calc_friction_drag_constant(Re_i_r, fc.Ma, seg.c_r, lambd, seg.sweep_le, seg.lw_c_r)
-            s_cd0_t = calc_friction_drag_constant(Re_i_t, fc.Ma, seg.c_t, lambd, seg.sweep_le, seg.lw_c_t)
-            s_cd0_i = get_quantity_distribution_across_x(s_cd0_r, s_cd0_t, seg.c_r, seg.c_t, s_c_i)
-            cd0_i = np.concatenate((cd0_i, s_cd0_i))
+            if self.cd0_aprox_type == CD0_AproxType.ADAPDT:
+                Re_i_r = fc.calc_reynolds(seg.c_r)
+                Re_i_t = fc.calc_reynolds(seg.c_t)
+                lambd=seg.c_t/seg.c_r
+                s_cd0_r = calc_friction_drag_constant(Re_i_r, fc.Ma, seg.c_r, lambd, np.radians(self.sweep_le), seg.lw_c_r)
+                s_cd0_t = calc_friction_drag_constant(Re_i_t, fc.Ma, seg.c_t, lambd, np.radians(seg.sweep_le), seg.lw_c_t)
+                s_cd0_i = get_quantity_distribution_across_x(s_cd0_r, s_cd0_t, seg.c_r, seg.c_t, s_c_i)
+                cd0_i = np.concatenate((cd0_i, s_cd0_i))
+            else:
+                cd0_i = None
         return p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i,c_i,cl0_i,cd0_i
 
     def calculate_and_set_aero_forces(self, fc:FlightCondition):
         p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i,c_i,cl0_i,cd0_i = self.get_waissll_geo_and_aero_data(fc)
         L_i_vec,D_i_vec = calc_joukowski_forces_weissinger_lifting_line(p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i, db_i,
                                                                           fc.V_inf_vec, fc.rho)
+        fc.forces.add_force_locations('wll_i_f', p_f_i)
+        fc.forces.add_force_vectors_and_locations('L_i_vec', L_i_vec, 'wll_i_f', ForceType.LIFT)
+        fc.forces.add_force_vectors_and_locations('D_i_vec', D_i_vec, 'wll_i_f', ForceType.DRAG)
+
         e_L = get_unit_vector_mx3(L_i_vec)
         e_D = get_unit_vector_mx3(D_i_vec)
         dp_db_c = fc.dyn_press*db_i*c_i
-        L_0_i= dp_db_c*cl0_i
-        D_0_i =  dp_db_c * cd0_i
-        L_0_i_vec = np.einsum('i,ij->ij', L_0_i, e_L)
-        D_0_i_vec = np.einsum('i,ij->ij', D_0_i, e_D)
-        fc.forces.add_force_locations('wll_i_f',p_f_i)
-        fc.forces.add_force_vectors_and_locations('L_i_vec',L_i_vec,'wll_i_f',ForceType.LIFT)
-        fc.forces.add_force_vectors_and_locations('D_i_vec', D_i_vec, 'wll_i_f',ForceType.DRAG)
-        fc.forces.add_force_vectors_and_locations('L_0_i_vec', L_0_i_vec, 'wll_i_f',ForceType.LIFT)
-        fc.forces.add_force_vectors_and_locations('D_0_i_vec', D_0_i_vec, 'wll_i_f',ForceType.DRAG)
+        if not (cl0_i is None):
+            L_0_i= dp_db_c*cl0_i
+            L_0_i_vec = np.einsum('i,ij->ij', L_0_i, e_L)
+            fc.forces.add_force_vectors_and_locations('L_0_i_vec', L_0_i_vec, 'wll_i_f', ForceType.LIFT)
+        if not (cd0_i is None):
+            D_0_i =  dp_db_c * cd0_i
+            D_0_i_vec = np.einsum('i,ij->ij', D_0_i, e_D)
+            fc.forces.add_force_vectors_and_locations('D_0_i_vec', D_0_i_vec, 'wll_i_f',ForceType.DRAG)
+
         return 0
 
 

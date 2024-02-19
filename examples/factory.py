@@ -60,24 +60,26 @@ def get_uav_6kg_one_seg_one_fc():
     #prepare wing segments
 
     b = 1.1 # each segment
-    c_r = 0.43  # root chord
-    c_t = 0.13  # tip chord
+    c_r = 0.23  # root chord
+    c_t = 0.23  # tip chord
     sweep_LE = 10.0
     i_r = 0.0  # kut uvijanja u korjenu krila
     i_t = 0.0  # kut uvijanja u vrhu krila
     i_slope = (i_t-i_r)/b
-    dihedral = 4.0# dihedral
-    naca_root = '63412'
-    naca_tip  = '63410'
+    dihedral = 0.0# dihedral
+    naca_root = '43012'
+    naca_tip  = '43010'
     seg = ac.Segment(b,c_r,c_t,sweep_LE,i_r,i_slope,dihedral,naca_root,naca_tip,sym=ac.Symmetry.X_Z_PLANE)
     wing.add_segment(seg)
     wing.set_mass_calc_data(1850, 1.5 * 2, 0.0014)
+    wing.set_cl0_cd0_aprox_types(ac.CL0_AproxType.NONE,ac.CD0_AproxType.NONE)
+    #wing.set_cl0_cd0_aprox_types(ac.CL0_AproxType.NACA_PANEL, ac.CD0_AproxType.ADAPDT)
     a.add_component(wing)
     #Prepare other
     all_other = ac.FixedComponent('All_other_parts',6.0)
     a.add_component(all_other)
     # Add Flight conditions
-    alpha = zero_angle
+    alpha = 2
     V_inf = 14
     fc = ac.FlightCondition(V_inf, 0.0, alpha)
     a.add_flight_condition(fc)

@@ -16,6 +16,7 @@ if not isExist:
     os.makedirs(out_folder_path)
 
 op = UAV_MinCD_OptProb(factory.get_uav_6kg_one_seg_one_fc)
+print(op.aircraft.get_info())
 print(op.get_info())
 opt_ctrl = {}
 op.opt_algorithm = ScipyOptimizationAlgorithm('SLSQP_mi=1000','SLSQP',opt_ctrl)
@@ -25,8 +26,6 @@ else:
     sol = op.optimize()
     op.print_output()
     print(sol)
-print(op._analysis_executors[0].aircraft.get_info())
-print(op.get_info())
+print(op.aircraft.get_info())
 op.aircraft.calculate_forces()
-op.aircraft.get_info()
 op.aircraft.plot_planform()
