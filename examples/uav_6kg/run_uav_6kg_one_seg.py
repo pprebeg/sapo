@@ -1,8 +1,12 @@
-from opt_prob_test1 import Aircraft_OptProb
-from src.aircraft import create_one_segment_wing
+from opt_prob_uav_6kg_one_seg import UAV_MinCD_OptProb
 from moobench.optlib_scipy import ScipyOptimizationAlgorithm
-
+import sys
 import os
+# Dodaj nadređeni direktorij u sys.path
+nadfolder = os.path.dirname(os.getcwd())
+sys.path.insert(0, nadfolder)
+import factory
+
 
 do_write = False
 # Prepare output directory for writing
@@ -11,7 +15,7 @@ isExist = os.path.exists(out_folder_path)
 if not isExist:
     os.makedirs(out_folder_path)
 
-op = Aircraft_OptProb(create_one_segment_wing)
+op = UAV_MinCD_OptProb(factory.get_uav_6kg_one_seg_one_fc)
 print(op.get_info())
 opt_ctrl = {}
 op.opt_algorithm = ScipyOptimizationAlgorithm('SLSQP_mi=1000','SLSQP',opt_ctrl)
@@ -23,4 +27,6 @@ else:
     print(sol)
 print(op._analysis_executors[0].aircraft.get_info())
 print(op.get_info())
-op._analysis_executors[0].aircraft.plot_planform()
+op.aircraft.calculate_forces()
+op.aircraft.get_info()
+op.aircraft.plot_planform()

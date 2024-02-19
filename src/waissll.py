@@ -13,7 +13,7 @@ def get_quantity_distribution_across_x(q_r,q_t,x_r,x_t,x):
     if np.isclose(q_t,q_r) or np.isclose(x_t,x_r):
         q= np.full_like(x,q_r)
     else:
-        q= (q_t-q_r)/(x_t-x_r)*x + q_r
+        q= (q_t-q_r)/(x_t-x_r)*(x-x_r) + q_r
     return q
 
 def get_waissll_geometry_segment(p_0, b, c0, ct, L0,i_r, i_t, phei, a_r, a_t, m, sym=False, xrot=0.0):

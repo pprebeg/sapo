@@ -11,7 +11,7 @@ if False:
     #a2.plot_planform(True)
 
 if True:
-    uav_1 = get_test_survailance_uav_one_segment()
+    uav_1 = get_uav_6kg_one_seg_one_fc()
     uav_1.calculate_forces()
     print(uav_1.get_info())
     uav_1.plot_planform()
