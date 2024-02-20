@@ -312,6 +312,7 @@ class Segment:
     @property
     def sym(self):
         return self._sym
+
     @property
     def lw_c_r(self):
         return self._lw_c_r
@@ -442,7 +443,7 @@ class Segment:
             self._a_r, self._a_t, m,sym,np.radians(self._xrot))
         return wll_geo
 
-    def get_segment_points(self):
+    def get_segment_points(self,do_return_symetrical = False):
         vRootLE = self._p_0
         b_2 = self._b
         cr = self._c_r
@@ -492,6 +493,13 @@ class Segment:
         x.append(vRootLE[0])
         y.append(vRootLE[1])
         z.append(vRootLE[2])
+
+        if do_return_symetrical:
+            if self.sym == Symmetry.X_Z_PLANE:
+                for i in range(len(y)):
+                    y[i] = -y[i]
+            else:
+                x.clear(),y.clear(),z.clear()
 
         return x, y, z
 
@@ -949,6 +957,15 @@ class Aircraft:
                 axMin, axMax = get_min_max(x, axMin, axMax)
                 axMin, axMax = get_min_max(y, axMin, axMax)
                 axMin, axMax = get_min_max(z, axMin, axMax)
+                if seg.sym != Symmetry.NO_SYMMETRY:
+                    x, y, z = seg.get_segment_points(True)
+                    xplot.append(x)
+                    yplot.append(y)
+                    zplot.append(z)
+                    labelplot.append('{0} sym seg {1}'.format(l_body.uid, i_seg))
+                    axMin, axMax = get_min_max(x, axMin, axMax)
+                    axMin, axMax = get_min_max(y, axMin, axMax)
+                    axMin, axMax = get_min_max(z, axMin, axMax)
 
         if len(xplot) > 0:
             fig = plt.figure()

@@ -26,6 +26,8 @@ else:
     sol = op.optimize()
     op.print_output()
     print(sol)
-print(op.aircraft.get_info())
+
+print(op.get_info())
 op.aircraft.calculate_forces()
+print(op.aircraft.get_info())
 op.aircraft.plot_planform()

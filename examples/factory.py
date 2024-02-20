@@ -60,12 +60,12 @@ def get_uav_6kg_one_seg_one_fc():
     #prepare wing segments
 
     b = 1.1 # each segment
-    c_r = 0.23  # root chord
-    c_t = 0.23  # tip chord
-    sweep_LE = 10.0
+    c_r = 0.25  # root chord
+    c_t = 0.21  # tip chord
+    sweep_LE = 00.0
     i_r = 0.0  # kut uvijanja u korjenu krila
     i_t = 0.0  # kut uvijanja u vrhu krila
-    i_slope = (i_t-i_r)/b
+    i_slope = -3 #°/m
     dihedral = 0.0# dihedral
     naca_root = '43012'
     naca_tip  = '43010'

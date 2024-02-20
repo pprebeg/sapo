@@ -4,7 +4,7 @@ try:
     from moobench.optbase import *
 except ImportError:
     pass
-from src.aircraft import Aircraft,FlightCondition,Segment
+from src.aircraft import Aircraft,FlightCondition,Segment,Wing
 
 class CallbackPropertyGetSetConnector(BasicGetSetConnector):
     def __init__(self,instance,prop):
@@ -101,6 +101,9 @@ class UAV_MinCD_OptProb(OptimizationProblem):
                 ws_dihedral_con = CallbackPropertyGetSetConnector(seg, Segment.dihedral)
                 self.add_design_variable(DesignVariable('x_dih_{}'.format(iws), ws_dihedral_con, 0.00, 20))
                 iws+=1
+            if isinstance(lbody,Wing):
+                w_A_con = CallbackPropertyGetSetConnector(lbody, Wing.A)
+                self.add_constraint(DesignConstraint('g_wing_A', w_A_con, 10.0, ConstrType.LT))
         objd = CallbackGetConnector(am.objfun_cd_mean)
         self.add_objective(DesignObjective('obj_CD', objd))
         self.add_analysis_executor(am)
