@@ -745,6 +745,10 @@ class LiftingBody(AircraftComponent):
                 cd0_i = np.concatenate((cd0_i, s_cd0_i))
             else:
                 cd0_i = None
+        if cd0_i.size==0:
+            cd0_i = None
+        if cl0_i.size==0:
+            cl0_i = None
         return p_kt_i, e_n_kt_i, p_f_i, p_1_i, p_2_i,db_i,c_i,cl0_i,cd0_i
 
     def calculate_and_set_aero_forces(self, fc:FlightCondition):
