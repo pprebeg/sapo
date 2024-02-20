@@ -732,8 +732,6 @@ class LiftingBody(AircraftComponent):
             if self.cl0_aprox_type == CL0_AproxType.NACA_PANEL:
                 s_cl0_i = get_quantity_distribution_across_x(seg.cl0_r,seg.cl0_t,seg.c_r,seg.c_t,s_c_i)
                 cl0_i = np.concatenate((cl0_i, s_cl0_i))
-            else:
-                cl0_i = None
             ##drag
             if self.cd0_aprox_type == CD0_AproxType.ADAPDT:
                 Re_i_r = fc.calc_reynolds(seg.c_r)
@@ -743,8 +741,7 @@ class LiftingBody(AircraftComponent):
                 s_cd0_t = calc_friction_drag_constant(Re_i_t, fc.Ma, seg.c_t, lambd, np.radians(seg.sweep_le), seg.lw_c_t)
                 s_cd0_i = get_quantity_distribution_across_x(s_cd0_r, s_cd0_t, seg.c_r, seg.c_t, s_c_i)
                 cd0_i = np.concatenate((cd0_i, s_cd0_i))
-            else:
-                cd0_i = None
+
         if cd0_i.size==0:
             cd0_i = None
         if cl0_i.size==0:
