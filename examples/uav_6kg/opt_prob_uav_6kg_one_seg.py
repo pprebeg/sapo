@@ -91,9 +91,13 @@ class UAV_MinCD_OptProb(OptimizationProblem):
                 ws_cr_con = CallbackPropertyGetSetConnector(seg, Segment.c_r)
                 self.add_design_variable(DesignVariable('x_c0_ws_{}'.format(iws), ws_cr_con, .01, 0.5))
                 ws_ct_con = CallbackPropertyGetSetConnector(seg, Segment.c_t)
-                self.add_design_variable(DesignVariable('x_ct_ws_{}'.format(iws), ws_ct_con, 0.01, 6.0))
+                self.add_design_variable(DesignVariable('x_ct_ws_{}'.format(iws), ws_ct_con, 0.01, 0.5))
+                # add ratio constraint
+                ws_g_ct_cr = CallbackGetPropRatioConnector(ws_ct_con,ws_cr_con)
+                self.add_constraint(DesignConstraint('g_ws_cr_ct', ws_g_ct_cr, 1.0, ConstrType.LT))
+
                 ws_sweep_con = CallbackPropertyGetSetConnector(seg, Segment.sweep_le)
-                self.add_design_variable(DesignVariable('x_sweep_ws_{}'.format(iws), ws_sweep_con, 0, 60))
+                self.add_design_variable(DesignVariable('x_sweep_ws_{}'.format(iws), ws_sweep_con, 0, 45))
                 ws_i_r_con = CallbackPropertyGetSetConnector(seg, Segment.incidence_r)
                 self.add_design_variable(DesignVariable('x_inc_r_ws_{}'.format(iws), ws_i_r_con, -3 , 5))
                 ws_i_slope_con = CallbackPropertyGetSetConnector(seg, Segment.incidence_slope)
@@ -104,10 +108,18 @@ class UAV_MinCD_OptProb(OptimizationProblem):
             if isinstance(lbody,Wing):
                 w_A_con = CallbackPropertyGetSetConnector(lbody, Wing.A)
                 self.add_constraint(DesignConstraint('g_wing_A', w_A_con, 10.0, ConstrType.LT))
-        objd = CallbackGetConnector(am.objfun_cd_mean)
+        objd = CallbackGetConnector(am.objfun_cl_cd_mean)
         self.add_objective(DesignObjective('obj_CD', objd))
         self.add_analysis_executor(am)
 
     @property
     def aircraft(self):
         return self._ac
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
